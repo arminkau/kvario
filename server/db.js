@@ -1,0 +1,123 @@
+import { createClient } from "@supabase/supabase-js";
+
+/* ============================================================
+   Databasåtkomst från servern
+
+   Servern använder service_role-nyckeln, som går förbi Row Level
+   Security. Den får ALDRIG hamna i frontend — med den kan man läsa
+   och ändra allt i databasen. Den ligger bara i serverns
+   miljövariabler.
+
+   Två saker som gör systemet robust snarare än snabbt:
+
+   1. Idempotens. Stripe skickar om webhooks vid timeout, nätverksfel
+      eller om din server svarar långsamt. Utan spärr får samma
+      betalning två ordernummer och kunden två mejl. Spärren är ett
+      unikt index på stripe_invoice_id.
+
+   2. Atomiskt löpnummer. Numret hämtas med en databasfunktion, inte
+      genom att läsa och sedan skriva. Två samtidiga köp kan annars
+      få samma nummer.
+   ============================================================ */
+
+const url = process.env.SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+export const db = url && serviceKey
+  ? createClient(url, serviceKey, { auth: { persistSession: false } })
+  : null;
+
+const MOMSSATS = 0.25;
+
+/* Momsen räknas baklänges ur bruttobeloppet, eftersom priset
+   anges inklusive moms mot konsument. */
+export function momsdelar(bruttoOre, sats = MOMSSATS) {
+  const netto = Math.round(bruttoOre / (1 + sats));
+  return { netto, moms: bruttoOre - netto };
+}
+
+/* Returnerar { order, nyskapad }. Är nyskapad false har den här
+   betalningen redan hanterats och inget mejl ska skickas igen. */
+export async function skapaOrder({
+  userId, epost, stripeInvoiceId, stripeCustomerId,
+  beloppOre, valuta, interval, betaldAt, periodSlut, angerratt,
+}) {
+  if (!db) throw new Error("Databasen är inte konfigurerad");
+
+  const { data: befintlig } = await db
+    .from("orders")
+    .select("*")
+    .eq("stripe_invoice_id", stripeInvoiceId)
+    .maybeSingle();
+
+  if (befintlig) return { order: befintlig, nyskapad: false };
+
+  const { data: nummer, error: numFel } = await db.rpc("nasta_ordernummer");
+  if (numFel) throw numFel;
+
+  const { moms } = momsdelar(beloppOre);
+
+  const { data, error } = await db
+    .from("orders")
+    .insert({
+      ordernummer: nummer,
+      user_id: userId || null,
+      epost,
+      stripe_invoice_id: stripeInvoiceId,
+      stripe_customer_id: stripeCustomerId,
+      belopp_ore: beloppOre,
+      moms_ore: moms,
+      valuta: valuta || "SEK",
+      interval,
+      betald_at: betaldAt,
+      period_slut: periodSlut,
+      angerratt_samtycke: !!angerratt,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    // Kapplöpning: en annan webhookleverans hann före mellan vår
+    // kontroll och insert. Hämta den som skapades och gå vidare.
+    if (error.code === "23505") {
+      const { data: d } = await db.from("orders").select("*")
+        .eq("stripe_invoice_id", stripeInvoiceId).single();
+      return { order: d, nyskapad: false };
+    }
+    throw error;
+  }
+
+  return { order: data, nyskapad: true };
+}
+
+export async function markeraAterbetald(stripeInvoiceId, aterbetaltOre, orsak) {
+  if (!db) return null;
+  const { data: order } = await db.from("orders").select("*")
+    .eq("stripe_invoice_id", stripeInvoiceId).maybeSingle();
+  if (!order) return null;
+
+  const totalt = (order.aterbetalt_ore || 0) + aterbetaltOre;
+  const { data } = await db.from("orders").update({
+    aterbetalt_ore: totalt,
+    status: totalt >= order.belopp_ore ? "aterbetald" : "delvis_aterbetald",
+    aterbetald_at: new Date().toISOString(),
+    aterbetalning_orsak: orsak || null,
+  }).eq("id", order.id).select().single();
+
+  return data;
+}
+
+export async function hamtaOrder(ordernummer) {
+  if (!db) return null;
+  const { data } = await db.from("orders").select("*")
+    .eq("ordernummer", ordernummer).maybeSingle();
+  return data;
+}
+
+export async function sattPlan(userId, plan, extra = {}) {
+  if (!db || !userId) return;
+  await db.from("subscriptions").upsert(
+    { user_id: userId, plan, updated_at: new Date().toISOString(), ...extra },
+    { onConflict: "user_id" }
+  );
+}
