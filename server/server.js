@@ -150,7 +150,13 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
         const sub = subscriptionId
           ? await stripe.subscriptions.retrieve(subscriptionId)
           : null;
-        const uid = sub?.metadata?.userId;
+        // user_id är en uuid-kolumn med foreign key mot auth.users.
+        // Ett trasigt eller ogiltigt userId i metadata ska aldrig
+        // få hela ordern att falla — bara kopplingen till kontot.
+        const raradUid = sub?.metadata?.userId;
+        const uid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raradUid || "")
+          ? raradUid
+          : null;
         const interval = sub?.items?.data?.[0]?.price?.recurring?.interval || "year";
         const betaldAt = new Date((faktura.status_transitions?.paid_at || faktura.created) * 1000);
         const periodSlut = sub?.current_period_end ? new Date(sub.current_period_end * 1000) : null;
