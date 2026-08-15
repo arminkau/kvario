@@ -56,6 +56,28 @@ export async function sattNyttLosenord(nyttLosenord) {
   if (error) throw error;
 }
 
+/* Byter inloggnings-e-post. Supabase skickar en bekräftelselänk till
+   den nya adressen — bytet sker först när länken klickats, så att
+   ingen kan låsa ut någon annan genom att skriva fel adress. */
+export async function bytEpost(nyEpost) {
+  const { error } = await supabase.auth.updateUser(
+    { email: nyEpost },
+    { emailRedirectTo: window.location.origin }
+  );
+  if (error) throw error;
+}
+
+/* Kundens egna ordrar. RLS släpper bara igenom de egna raderna. */
+export async function fetchOrdrar(userId) {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("ordernummer, betald_at, belopp_ore, moms_ore, valuta, interval, status, aterbetalt_ore")
+    .eq("user_id", userId)
+    .order("betald_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 /* ---------- Google ----------
    Slås på i Supabase under Authentication -> Providers. */
 export async function signInWithGoogle() {

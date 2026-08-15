@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -588,7 +588,6 @@ export default function KvarioApp() {
      egen (se schema.sql). Automatisk-flaggan är bara en signal till
      adminpanelen om att begäran ligger inom den lagstadgade
      14-dagarsfristen och bör godkännas utan vidare bedömning. */
-  const [showManage, setShowManage] = useState(false);
   const [refundOrsak, setRefundOrsak] = useState("");
   const [refundStatus, setRefundStatus] = useState("idle");
   const [refundFel, setRefundFel] = useState("");
@@ -626,6 +625,42 @@ export default function KvarioApp() {
       setRefundFel("Kunde inte skicka begäran. Försök igen om en stund.");
     }
     setRefundStatus("idle");
+  };
+
+  /* ---------- Kontouppgifter ---------- */
+  const [ordrar, setOrdrar] = useState([]);
+  const [nyEpost, setNyEpost] = useState("");
+  const [nyttLosen, setNyttLosen] = useState("");
+  const [kontoBesked, setKontoBesked] = useState("");
+  const [kontoFel, setKontoFel] = useState("");
+
+  useEffect(() => {
+    if (!hasAuth || !session?.user?.id) return;
+    fetchOrdrar(session.user.id).then(setOrdrar).catch(() => {});
+  }, [session?.user?.id]);
+
+  const sparaNyEpost = async () => {
+    setKontoBesked(""); setKontoFel("");
+    if (!/^\S+@\S+\.\S+$/.test(nyEpost)) return setKontoFel("Skriv en giltig e-postadress.");
+    try {
+      await bytEpost(nyEpost.trim());
+      setNyEpost("");
+      setKontoBesked("Vi skickade en bekräftelselänk till den nya adressen. Bytet sker när du klickat på den.");
+    } catch (e) {
+      setKontoFel(e.message || "Kunde inte byta e-post.");
+    }
+  };
+
+  const sparaNyttLosen = async () => {
+    setKontoBesked(""); setKontoFel("");
+    if (nyttLosen.length < 6) return setKontoFel("Lösenordet måste vara minst 6 tecken.");
+    try {
+      await sattNyttLosenord(nyttLosen);
+      setNyttLosen("");
+      setKontoBesked("Lösenordet är bytt.");
+    } catch (e) {
+      setKontoFel(e.message || "Kunde inte byta lösenord.");
+    }
   };
 
   const exportAllt = () => {
@@ -873,7 +908,7 @@ export default function KvarioApp() {
               {saveState === "saving" ? "Sparar…" : saveState === "saved" ? "Sparat" : saveState === "error" ? "Kunde inte spara" : ""}
             </span>
             {subscribed ? (
-              <button className="badge" onClick={() => setShowManage(true)}>Pro</button>
+              <button className="badge" onClick={() => setFlik("konto")}>Pro</button>
             ) : trial.active ? (
               <button className="trialBadge" onClick={() => setShowPaywall(true)}>
                 Pro · {trial.daysLeft} {trial.daysLeft === 1 ? "dag" : "dagar"} kvar
@@ -1647,6 +1682,117 @@ export default function KvarioApp() {
         {/* ---------- KONTO, forts. ---------- */}
         {flik === "konto" && (<>
 
+        {hasAuth && session && (
+          <div className="panel">
+            <div className="panelHead">
+              <h2>Prenumeration</h2>
+              <span className="eyebrow">
+                {subscribed ? "Kvario Pro" : trial.active ? `Provperiod · ${trial.daysLeft} ${trial.daysLeft === 1 ? "dag" : "dagar"} kvar` : "Gratis"}
+              </span>
+            </div>
+
+            {subscribed ? (
+              <>
+                <p className="dataText">
+                  Du har Kvario Pro{sub?.current_period_end && <> och den förnyas {new Date(sub.current_period_end).toLocaleDateString("sv-SE")}</>}.
+                  Uppsägning, byte mellan månad och år, kortbyte och alla kvitton sköter du
+                  på Stripes sida — den är säkrare än att vi hanterar korten själva.
+                </p>
+                <div className="dataKnappar">
+                  <button className="add" onClick={hanteraPrenumeration}>Hantera prenumerationen</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="dataText">
+                  {trial.active
+                    ? `Din provperiod har ${trial.daysLeft} ${trial.daysLeft === 1 ? "dag" : "dagar"} kvar. Tecknar du nu fortsätter allt utan avbrott.`
+                    : "Uträkningen \"kvar till dig\" är gratis för alltid. Pro låser upp marginalräknaren, årsprognosen och obegränsat med fakturor."}
+                </p>
+                <div className="dataKnappar">
+                  <button className="add" onClick={() => setShowPaywall(true)}>Se vad Pro kostar</button>
+                </div>
+              </>
+            )}
+
+            {ordrar.length > 0 && (
+              <div className="lagringVal">
+                <div className="eyebrow" style={{ marginBottom: 10 }}>Dina betalningar</div>
+                {ordrar.map((o) => (
+                  <div className="item" key={o.ordernummer}>
+                    <span className="iname">
+                      {new Date(o.betald_at).toLocaleDateString("sv-SE")}
+                      <span className="dim"> · {o.ordernummer}</span>
+                      {o.status !== "betald" && <span className="regelTag">
+                        {o.status === "aterbetald" ? "Återbetald" : "Delvis återbetald"}
+                      </span>}
+                    </span>
+                    <span className="iamt">
+                      {kr(o.belopp_ore / 100)} kr
+                      <span className="dim"> · {o.interval === "month" ? "månad" : "år"}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {ordrar.length > 0 && (
+              <div className="lagringVal">
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Ångerrätt</div>
+                {refundKlar ? (
+                  <p className="dataText" style={{ margin: 0 }}>
+                    Din begäran är mottagen. Ligger den inom 14 dagar godkänns den
+                    normalt automatiskt — annars hör vi av oss.
+                  </p>
+                ) : (
+                  <>
+                    <p className="dataText">
+                      Du har 14 dagars ångerrätt från köpet. Begäran gäller din senaste betalning.
+                    </p>
+                    <textarea rows="2" placeholder="Anledning (frivilligt)" value={refundOrsak}
+                              onChange={(e) => setRefundOrsak(e.target.value)}
+                              style={{ width: "100%", marginBottom: 10 }} />
+                    {refundFel && <p className="authError">{refundFel}</p>}
+                    <button className="farlig" onClick={begarAterbetalning} disabled={refundStatus === "sending"}>
+                      {refundStatus === "sending" ? "Skickar…" : "Begär återbetalning"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {hasAuth && session && (
+          <div className="panel">
+            <div className="panelHead">
+              <h2>Inloggningsuppgifter</h2>
+              <span className="eyebrow">{session.user.email}</span>
+            </div>
+
+            {kontoBesked && <p className="dataText" style={{ color: "var(--brass-dk)" }}>{kontoBesked}</p>}
+            {kontoFel && <p className="authError">{kontoFel}</p>}
+
+            <div className="lagringVal">
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Byt e-postadress</div>
+              <div className="form" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
+                <input className="grow" type="email" placeholder="ny@epost.se" value={nyEpost}
+                       onChange={(e) => setNyEpost(e.target.value)} autoComplete="email" />
+                <button className="add" onClick={sparaNyEpost}>Byt e-post</button>
+              </div>
+            </div>
+
+            <div className="lagringVal">
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Byt lösenord</div>
+              <div className="form" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
+                <input className="grow" type="password" placeholder="Minst 6 tecken" value={nyttLosen}
+                       onChange={(e) => setNyttLosen(e.target.value)} autoComplete="new-password" />
+                <button className="add" onClick={sparaNyttLosen}>Byt lösenord</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="panel">
           <div className="panelHead">
               <h2>Din data</h2>
@@ -1837,46 +1983,6 @@ export default function KvarioApp() {
         </div>
       )}
 
-      {/* HANTERA PRENUMERATION */}
-      {showManage && (
-        <div className="modalBg" onClick={() => { setShowManage(false); setRefundKlar(false); setRefundFel(""); setRefundOrsak(""); }}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="eyebrow">Kvario Pro</div>
-            <h2>Hantera prenumeration</h2>
-
-            <button className="add wide" onClick={hanteraPrenumeration}>Uppsägning, kortbyte och kvitton</button>
-            <p className="modalNote">Öppnar Stripes egen sida i en ny flik.</p>
-
-            <div style={{ borderTop: "1px solid var(--line)", margin: "20px 0" }} />
-
-            {refundKlar ? (
-              <p className="modalLead">
-                Din begäran är mottagen. Ligger den inom 14 dagar och du inte avsagt dig
-                ångerrätten godkänns den normalt automatiskt — annars hör vi av oss.
-              </p>
-            ) : (
-              <>
-                <h3 style={{ margin: "0 0 8px" }}>Begär återbetalning</h3>
-                <p className="modalNote">
-                  Gäller din senaste betalning. Momsen justeras automatiskt i nästa
-                  momsdeklaration om begäran godkänns.
-                </p>
-                <textarea rows="3" placeholder="Anledning (frivilligt)" value={refundOrsak}
-                          onChange={(e) => setRefundOrsak(e.target.value)}
-                          style={{ width: "100%", marginTop: 8 }} />
-                {refundFel && <p className="authError">{refundFel}</p>}
-                <button className="farlig" style={{ marginTop: 10 }} onClick={begarAterbetalning} disabled={refundStatus === "sending"}>
-                  {refundStatus === "sending" ? "Skickar…" : "Skicka begäran"}
-                </button>
-              </>
-            )}
-
-            <button className="linkbtn center" onClick={() => { setShowManage(false); setRefundKlar(false); setRefundFel(""); setRefundOrsak(""); }}>
-              Stäng
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
