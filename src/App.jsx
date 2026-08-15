@@ -17,6 +17,7 @@ import { Marginalkurvan } from "./Charts.jsx";
 import { kommandeDatum } from "./skattedatum";
 import DeladVy from "./DeladVy.jsx";
 import { skapaDelning, listaDelningar, aterkallaDelning, delaUrl } from "./dela";
+import { laddaUppKvitto, hamtaKvitton, kvittoLank, raderaKvitto } from "./kvitton";
 import Landing from "./Landing.jsx";
 
 /* ============================================================
@@ -639,6 +640,52 @@ export default function KvarioApp() {
       setRefundFel("Kunde inte skicka begäran. Försök igen om en stund.");
     }
     setRefundStatus("idle");
+  };
+
+  /* ---------- Kvitton ----------
+     Bara för inloggade konton: filerna ligger i Supabase Storage
+     under en mapp per användare. Utan konto finns ingen mapp att
+     lägga dem i, och de skulle ändå inte följa med mellan enheter. */
+  const [kvitton, setKvitton] = useState([]);
+  const [kvittoFel, setKvittoFel] = useState("");
+  const [laddarKvitto, setLaddarKvitto] = useState(null);
+
+  const laddaKvitton = async () => {
+    if (!session?.user?.id) return;
+    try { setKvitton(await hamtaKvitton(session.user.id)); }
+    catch (e) { console.error("Kunde inte hämta kvitton", e); }
+  };
+
+  useEffect(() => { if (hasAuth && session?.user?.id) laddaKvitton(); }, [session?.user?.id]);
+
+  const kvittonFor = (kostnadId) => kvitton.filter((k) => k.kostnad_id === String(kostnadId));
+
+  const valjKvitto = async (kostnadId, fil) => {
+    if (!fil || !session?.user?.id) return;
+    setKvittoFel("");
+    setLaddarKvitto(kostnadId);
+    try {
+      await laddaUppKvitto({ userId: session.user.id, kostnadId, fil });
+      await laddaKvitton();
+    } catch (e) {
+      setKvittoFel(
+        e.message?.includes("Bucket not found")
+          ? "Lagringsplatsen saknas. Skapa en privat bucket som heter \"kvitton\" i Supabase."
+          : e.message || "Kunde inte ladda upp filen."
+      );
+    }
+    setLaddarKvitto(null);
+  };
+
+  const oppnaKvitto = async (k) => {
+    try { window.open(await kvittoLank(k.sokvag), "_blank", "noopener"); }
+    catch { setKvittoFel("Kunde inte öppna filen."); }
+  };
+
+  const taBortKvitto = async (k) => {
+    if (!window.confirm(`Radera ${k.filnamn}? Underlag ska sparas i sju år enligt bokföringslagen.`)) return;
+    try { await raderaKvitto(k); await laddaKvitton(); }
+    catch { setKvittoFel("Kunde inte radera filen."); }
   };
 
   /* ---------- Kontouppgifter ---------- */
@@ -1609,17 +1656,44 @@ export default function KvarioApp() {
               <button className="linkbtn" onClick={exportCsv}>Exportera</button>
             </div>
             {costs.length === 0 && <p className="empty">Varje avdragsgill kostnad sänker både skatten och {country.vatName.toLowerCase()}en du ska betala.</p>}
-            {costs.map((c) => (
+            {costs.map((c) => {
+              const egna = kvittonFor(c.id);
+              return (
               <div className="item" key={c.id}>
                 <span className="iname">
                   {c.label}
                   {c.recurring && <span className="regelTag" title="Återkommande varje månad">↻</span>}
+                  {hasAuth && session && egna.map((k) => (
+                    <button key={k.id} className="regelTag kvittoTag" title={`${k.filnamn} — klicka för att öppna`}
+                            onClick={() => oppnaKvitto(k)}>
+                      📎 kvitto
+                    </button>
+                  ))}
+                  {hasAuth && session && egna.map((k) => (
+                    <button key={`x${k.id}`} className="kvittoBort" title="Ta bort kvittot"
+                            onClick={() => taBortKvitto(k)}>×</button>
+                  ))}
                 </span>
                 <span className="iamt">{kr(c.amount)} {c.currency}
                   {c.currency !== "SEK" && <span className="dim"> · {kr(c.amount * FX[c.currency])} kr</span>}</span>
+                {hasAuth && session && (
+                  <label className="kvittoKnapp" title="Bifoga kvitto eller faktura">
+                    {laddarKvitto === c.id ? "…" : "📎"}
+                    <input type="file" accept="image/*,application/pdf" style={{ display: "none" }}
+                           onChange={(e) => { valjKvitto(c.id, e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
+                )}
                 <button className="x" onClick={() => patch({ costs: costs.filter((x) => x.id !== c.id) })} aria-label="Ta bort">×</button>
               </div>
-            ))}
+              );
+            })}
+            {kvittoFel && <p className="authError">{kvittoFel}</p>}
+            {hasAuth && session && costs.length > 0 && (
+              <p className="limitNote">
+                Bokföringslagen kräver att underlaget sparas i sju år. Bifoga kvittot med
+                gemet så ligger det med kostnaden i stället för i en skokartong.
+              </p>
+            )}
             <div className="form">
               <input className="grow" placeholder="Vad" value={cost.label}
                      onChange={(e) => setCost({ ...cost, label: e.target.value })}

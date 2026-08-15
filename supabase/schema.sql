@@ -303,3 +303,59 @@ language sql stable security definer set search_path = public as $$
   join public.user_state u on u.user_id = d.user_id
   where d.token = t and not d.aterkallad and d.giltig_till > now();
 $$;
+
+
+-- ============================================================
+-- 10. Kvitton och underlag
+-- ============================================================
+
+-- Bokföringslagen kräver att underlaget sparas i sju år. Siffran i
+-- appen är inte underlaget — kvittot är det. Filerna ligger i
+-- Storage, inte i databasen; här sparas bara var de finns och vilken
+-- kostnad de hör till.
+
+-- Skapa bucketen först (Storage -> New bucket -> "kvitton", PRIVAT).
+-- En publik bucket vore fel: kvitton kan innehålla adresser och
+-- kontouppgifter.
+
+create table if not exists public.kvitton (
+  id          bigserial primary key,
+  user_id     uuid not null references auth.users on delete cascade,
+  -- Kostnadens id i user_state-datan. Ingen foreign key finns att
+  -- peka på eftersom kostnaderna ligger i ett jsonb-fält.
+  kostnad_id  text not null,
+  sokvag      text not null,          -- filens plats i bucketen
+  filnamn     text,
+  storlek     int,
+  mimetyp     text,
+  uppladdad_at timestamptz not null default now()
+);
+
+alter table public.kvitton enable row level security;
+
+create policy "läs egna kvitton" on public.kvitton
+  for select using (auth.uid() = user_id);
+create policy "spara eget kvitto" on public.kvitton
+  for insert with check (auth.uid() = user_id);
+create policy "radera eget kvitto" on public.kvitton
+  for delete using (auth.uid() = user_id);
+
+create index if not exists kvitton_user_kostnad_idx
+  on public.kvitton (user_id, kostnad_id);
+
+-- Filerna i bucketen skyddas separat. Varje fil läggs under en mapp
+-- med användarens id, och policyerna nedan låter bara ägaren röra
+-- sin egen mapp. Utan dem skulle vem som helst med ett giltigt konto
+-- kunna lista andras kvitton.
+create policy "läs egna filer" on storage.objects
+  for select using (
+    bucket_id = 'kvitton' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+create policy "ladda upp egna filer" on storage.objects
+  for insert with check (
+    bucket_id = 'kvitton' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+create policy "radera egna filer" on storage.objects
+  for delete using (
+    bucket_id = 'kvitton' and (storage.foldername(name))[1] = auth.uid()::text
+  );

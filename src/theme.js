@@ -94,6 +94,17 @@ export const CSS = `
 .tabKolumn{display:flex;flex-direction:column}
 .tabKolumn > .sist{order:2}
 
+/* Kvitton på en kostnadsrad */
+.kvittoKnapp{font-size:14px;line-height:1;padding:4px 6px;border-radius:3px;cursor:pointer;
+  color:var(--mist);flex:none}
+.kvittoKnapp:hover{background:rgba(0,0,0,.05);color:var(--slate)}
+.kvittoTag{font:inherit;font-size:10px;border:1px solid var(--brass);color:var(--brass-dk);
+  background:transparent;cursor:pointer}
+.kvittoTag:hover{background:var(--brass);color:#fff}
+.kvittoBort{background:none;border:none;color:var(--mist);cursor:pointer;font-size:13px;
+  line-height:1;padding:0 2px}
+.kvittoBort:hover{color:var(--warn)}
+
 .segbtns{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
 .sb{font:inherit;font-size:12.5px;padding:6px 13px;border-radius:3px;border:1px solid var(--line);background:transparent;color:var(--slate);cursor:pointer}
 .sb[data-on="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
