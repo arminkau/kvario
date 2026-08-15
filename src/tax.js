@@ -6,10 +6,82 @@
 
    Kvario räknar bara på enskild firma: vinsten är din inkomst,
    ett enda skattesteg.
+
+   ÅRSVÄRDEN
+
+   Varje sats och gräns som ändras mellan år ligger i AR nedan,
+   ett block per inkomstår. Det finns ingen tjänst hos Skatteverket
+   att hämta dem ifrån — de bestäms av lagstiftning och publiceras
+   som tabeller varje höst — så uppdateringen är manuell. Poängen
+   med tabellen är att den blir en enda redigering, och att appen
+   kan säga ifrån när ett år saknas i stället för att tyst räkna
+   vidare på fjolårets siffror.
+
+   Så här lägger du till ett nytt år:
+     1. Kopiera senaste blocket och byt årtal
+     2. Uppdatera värdena mot Skatteverkets "Belopp och procent"
+     3. Sätt kontrollerad till datumet du stämde av
    ============================================================ */
 
-const PBB = 59200;      // prisbasbelopp 2026 (Skatteverket)
-const SKIKTGRANS = 643000;
+const AR = {
+  2026: {
+    kontrollerad: "2026-08-15",
+
+    pbb: 59200,               // prisbasbelopp
+    skiktgrans: 643000,       // statlig skatt börjar över denna
+    statligSats: 0.20,
+
+    // Egenavgifter
+    egenavgift: 0.2897,
+    egenavgiftPension: 0.1021,
+    schablonavdrag: 0.25,
+    schablonavdragPension: 0.10,
+    nedsattningPp: 0.075,     // generell nedsättning, procentenheter
+    nedsattningTak: 15000,
+    nedsattningKrav: 40000,   // krävs överskott över detta
+
+    // Arbetsgivaravgifter
+    aga: 0.3142,
+    agaPension: 0.1021,
+    agaUng: 0.2081,
+    agaVaxaTak: 35000,        // per månad
+    agaUngTak: 25000,
+
+    /* Räntefördelning. Statslåneräntan den 30 november året före
+       styr satsen: positiv fördelning SLR + 6,0 procentenheter,
+       negativ SLR + 1,0. SLR 30 nov 2025 var 2,55 %. */
+    slr: 0.0255,
+    rfPositivPp: 0.06,
+    rfNegativPp: 0.01,
+    rfGrans: 50000,           // kapitalunderlaget måste passera denna
+    kapitalskatt: 0.30,
+
+    // Periodiseringsfond, enskild näringsidkare
+    pfAndel: 0.30,            // högst 30 % av resultatet
+    pfAterforingAr: 6,
+
+    // Moms
+    momsgrans: 120000,        // omsättningsgräns för momsbefrielse
+    ossTroskel: 99680,        // digitala tjänster till privatpersoner i EU
+
+    pensionAndel: 0.35,       // eget pensionssparande, andel av överskott
+    pensionTakPbb: 10,
+  },
+};
+
+/* Senaste året vi har kontrollerade värden för. */
+export const SENASTE_AR = Math.max(...Object.keys(AR).map(Number));
+
+/* Värden för ett inkomstår. Saknas året används det senaste vi har,
+   och saknasAr sätts så att gränssnittet kan visa att siffrorna
+   inte är avstämda mot det år användaren räknar på. */
+export function varden(ar = SENASTE_AR) {
+  const finns = AR[ar];
+  return { ...(finns || AR[SENASTE_AR]), ar, saknasAr: finns ? null : ar };
+}
+
+const PBB = AR[SENASTE_AR].pbb;
+const SKIKTGRANS = AR[SENASTE_AR].skiktgrans;
 
 /* ---------- Arbetsgivaravgifter per anställd ----------
    Full avgift är 31,42 %, men flera nedsättningar finns och de
@@ -169,11 +241,24 @@ const ENSKILD = {
       key: "pension", label: "Eget pensionssparande", type: "number", default: 0, suffix: "kr/år",
       hint: "Avdragsgillt upp till en andel av inkomsten. Sänker skatten men låser pengarna.",
     },
+    {
+      key: "kapitalunderlag", label: "Kapitalunderlag", type: "number", default: 0, suffix: "kr",
+      hint: "Ditt egna kapital i firman vid årets ingång: tillgångar minus skulder. Överstiger det 50 000 kr får du göra positiv räntefördelning — en del av vinsten flyttas då till inkomst av kapital och beskattas med 30 % i stället för din marginalskatt. Är det oklart står siffran i förra årets NE-bilaga, ruta B10. Lämna 0 om du är osäker.",
+    },
+    {
+      key: "periodiseringsfond", label: "Avsätt till periodiseringsfond", type: "number", default: 0, suffix: "kr/år",
+      hint: "Du får skjuta upp skatten på högst 30 % av vinsten i upp till sex år. Pengarna stannar i firman och beskattas när fonden återförs — bra ett bra år, dyrt om ett sämre år aldrig kommer. Till skillnad från aktiebolag betalar enskild firma ingen schablonränta på avsättningen.",
+    },
   ],
   /* Testas mot det faktiska beräkningsresultatet, inte mot överskottet.
      Skiktgränsen mäts på beskattningsbar förvärvsinkomst — alltså efter
      egenavgifter och grundavdrag — inte på vinsten. */
   milestones: [
+    {
+      key: "rantefordelning", label: "Räntefördelning outnyttjad",
+      note: "Du har kapital i firman som ger rätt till positiv räntefördelning, men har inte fyllt i något. Den delen skulle beskattas med 30 % i stället för din marginalskatt.",
+      hit: (r) => r.rfMojlig > 0 && r.rantefordelning === 0,
+    },
     {
       key: "statlig", label: "Statlig skatt börjar",
       note: "Skiktgränsen på 643 000 kr mäts på beskattningsbar förvärvsinkomst, alltså efter egenavgifter och grundavdrag. Över den tillkommer 20 % statlig skatt på den överskjutande delen.",
@@ -181,12 +266,41 @@ const ENSKILD = {
     },
   ],
 
-  compute({ revenue, costs, settings, payroll = 0, payrollAvgifter = null }) {
+  compute({ revenue, costs, settings, payroll = 0, payrollAvgifter = null, ar }) {
+    const v = varden(ar);
+
     // Anställdas löner och arbetsgivaravgifter är kostnader i firman.
-    const agaPersonal = payrollAvgifter !== null ? payrollAvgifter : payroll * AGA_FULL;
+    const agaPersonal = payrollAvgifter !== null ? payrollAvgifter : payroll * v.aga;
     const overskott = Math.max(0, revenue - costs - payroll - agaPersonal);
-    const pension = Math.min(settings.pension || 0, overskott * 0.35, 10 * PBB);
-    const netto = Math.max(0, overskott - pension);
+    const pension = Math.min(settings.pension || 0, overskott * v.pensionAndel, v.pensionTakPbb * v.pbb);
+    const efterPension = Math.max(0, overskott - pension);
+
+    /* ---------- Räntefördelning ----------
+       Har du eget kapital i firman får en tänkt avkastning på det
+       flyttas från näringsverksamhet till inkomst av kapital, där
+       skatten är 30 % i stället för din marginalskatt. För den som
+       ligger över skiktgränsen är skillnaden stor.
+
+       Satsen är statslåneräntan den 30 november året före plus 6,0
+       procentenheter. Kapitalunderlaget måste passera 50 000 kr —
+       under den gränsen finns ingen fördelning att göra. */
+    const kapitalunderlag = Math.max(0, settings.kapitalunderlag || 0);
+    const rfSats = v.slr + v.rfPositivPp;
+    const rfMojlig = kapitalunderlag > v.rfGrans ? kapitalunderlag * rfSats : 0;
+    // Får aldrig överstiga resultatet — man kan inte fördela mer än
+    // vad verksamheten gett.
+    const rantefordelning = Math.min(rfMojlig, efterPension);
+    const rfSkatt = rantefordelning * v.kapitalskatt;
+    const efterRf = Math.max(0, efterPension - rantefordelning);
+
+    /* ---------- Periodiseringsfond ----------
+       Högst 30 % av resultatet får skjutas upp i sex år. Pengarna
+       stannar i firman, obeskattade tills fonden återförs. Enskild
+       näringsidkare betalar ingen schablonränta på avsättningen —
+       det gäller bara juridiska personer. */
+    const pfTak = efterRf * v.pfAndel;
+    const periodiseringsfond = Math.min(Math.max(0, settings.periodiseringsfond || 0), pfTak);
+    const netto = Math.max(0, efterRf - periodiseringsfond);
 
     /* Tre lägen enligt Skatteverket:
        full      — 28,97 %, schablonavdrag 25 %
@@ -197,19 +311,19 @@ const ENSKILD = {
                    har hel ålders-, sjuk- eller aktivitetsersättning. */
     /* Har du fyllt 67 vid årets ingång gäller endast
        ålderspensionsavgift, oavsett vad som valts manuellt. */
-    const alder = settings.fodelsear ? 2026 - settings.fodelsear : null;
+    const alder = settings.fodelsear ? v.ar - settings.fodelsear : null;
     const lage = alder !== null && alder >= 67 ? "pension" : (settings.avgiftslage || "full");
-    const schablon = lage === "pension" ? 0.1 : 0.25;
+    const schablon = lage === "pension" ? v.schablonavdragPension : v.schablonavdrag;
     const underlag = netto * (1 - schablon);
 
     let egenavgifter;
     if (lage === "pension") {
-      egenavgifter = underlag * 0.1021;
+      egenavgifter = underlag * v.egenavgiftPension;
     } else {
-      egenavgifter = underlag * 0.2897;
-      if (lage === "generell" && netto > 40000) {
-        const nedsattning = Math.min(underlag * 0.075, 15000);
-        egenavgifter = Math.max(underlag * 0.1021, egenavgifter - nedsattning);
+      egenavgifter = underlag * v.egenavgift;
+      if (lage === "generell" && netto > v.nedsattningKrav) {
+        const nedsattning = Math.min(underlag * v.nedsattningPp, v.nedsattningTak);
+        egenavgifter = Math.max(underlag * v.egenavgiftPension, egenavgifter - nedsattning);
       }
     }
 
@@ -222,7 +336,11 @@ const ENSKILD = {
     const utan = tjansteskatt(annan, annan, settings.kommunalskatt, settings);
     const med = tjansteskatt(annan + naringsinkomst, annan + naringsinkomst, settings.kommunalskatt, settings);
     const t = { ...med, skatt: Math.max(0, med.skatt - utan.skatt) };
-    const kvar = Math.max(0, netto - egenavgifter - t.skatt);
+
+    /* Restposten: vad som blir över av näringsdelen, plus den
+       räntefördelade delen efter kapitalskatt. Periodiseringsfonden
+       räknas inte in — de pengarna ligger kvar i firman. */
+    const kvar = Math.max(0, netto - egenavgifter - t.skatt) + (rantefordelning - rfSkatt);
 
     const lines = [
       { key: "egenavgifter", label: "Egenavgifter", amount: egenavgifter,
@@ -234,6 +352,15 @@ const ENSKILD = {
           ? `Ovanpå ${Math.round(annan).toLocaleString("sv-SE")} kr i annan inkomst${med.statlig > 0 ? ", varav en del över skiktgränsen" : ""}`
           : `Kommunal ${settings.kommunalskatt} %${t.statlig > 0 ? " plus statlig 20 %" : ""}, efter jobbskatteavdrag ${Math.round(t.jsa).toLocaleString("sv-SE")} kr` },
     ];
+
+    if (rantefordelning > 0) {
+      lines.splice(0, 0, { key: "kapitalskatt", label: "Skatt på räntefördelning", amount: rfSkatt,
+        note: `30 % på ${Math.round(rantefordelning).toLocaleString("sv-SE")} kr som flyttats till kapital` });
+    }
+    if (periodiseringsfond > 0) {
+      lines.splice(0, 0, { key: "periodiseringsfond", label: "Periodiseringsfond", amount: periodiseringsfond,
+        note: `Kvar i firman, beskattas senast om ${v.pfAterforingAr} år` });
+    }
     if (pension > 0) {
       lines.splice(0, 0, { key: "pension", label: "Pensionssparande", amount: pension,
         note: "Ditt, men låst till pensionen" });
@@ -247,8 +374,11 @@ const ENSKILD = {
     return {
       overskott, kvar, lines, payroll, agaPersonal,
       statlig: med.statlig, tjanstedel: 0,
-      owed: egenavgifter + t.skatt + agaPersonal,
-      caveat: "Uppskattning för enskild firma, inkomstår 2026. Grundavdraget interpoleras mellan Skatteverkets brytpunkter och jobbskatteavdraget är approximerat. Räntefördelning, periodiseringsfond och expansionsfond ingår inte.",
+      rantefordelning, rfSkatt, rfSats, rfMojlig, kapitalunderlag,
+      periodiseringsfond, pfTak,
+      ar: v.ar, saknasAr: v.saknasAr, kontrollerad: v.kontrollerad,
+      owed: egenavgifter + t.skatt + agaPersonal + rfSkatt,
+      caveat: `Uppskattning för enskild firma, inkomstår ${v.ar}. Grundavdraget interpoleras mellan Skatteverkets brytpunkter och jobbskatteavdraget är approximerat. Expansionsfond och sparade underskott ingår inte.`,
     };
   },
 };

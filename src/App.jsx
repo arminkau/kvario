@@ -12,7 +12,7 @@ import Admin from "./Admin.jsx";
 import { TESTKONTON, ADMIN_TESTDATA } from "./testdata";
 import { VILLKOR, VILLKOR_VERSION } from "./villkor";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
-import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER } from "./tax";
+import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER, SENASTE_AR } from "./tax";
 import { Marginalkurvan } from "./Charts.jsx";
 import { kommandeDatum } from "./skattedatum";
 import DeladVy from "./DeladVy.jsx";
@@ -420,7 +420,10 @@ export default function KvarioApp() {
     const unpaid = invoices.filter((i) => !i.paid).reduce((s, i) => s + i.amount * FX[i.currency], 0);
     let tax = null;
     if (country.taxModule === "live" && form) {
-      tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter });
+      // Året styr vilka satser som används. Saknas det i tabellen
+      // säger tax.js ifrån via saknasAr i stället för att tyst
+      // räkna vidare på fjolårets siffror.
+      tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: new Date().getFullYear() });
       tax.marginal = marginalskatt(form, { revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter });
     }
     return { revenue, outVat, inVat, vatDue: Math.max(0, outVat - inVat), costBase, unpaid, tax, count: used.length, momsreg, perTyp };
@@ -1028,6 +1031,17 @@ export default function KvarioApp() {
         )}
 
         {/* VARNINGAR */}
+        {d.tax?.saknasAr && (
+          <div className="alert">
+            <span className="bang">!</span>
+            <p>
+              <strong>Siffrorna är inte avstämda mot {d.tax.saknasAr}.</strong> Vi räknar med
+              reglerna för {d.tax.ar === d.tax.saknasAr ? SENASTE_AR : d.tax.ar}, som stämdes av{" "}
+              {d.tax.kontrollerad}. Satser och gränser ändras vid årsskiftet — stäm av mot
+              Skatteverket innan du planerar efter det här.
+            </p>
+          </div>
+        )}
         {!d.momsreg && country.threshold && d.revenue > country.threshold * 0.7 && (
           <div className="alert">
             <span className="bang">!</span>
