@@ -58,37 +58,51 @@ app.post("/checkout", express.json(), async (req, res) => {
   const { userId, email, interval, angerratt } = req.body;
   if (!userId) return res.status(400).json({ error: "userId saknas" });
 
+  const nyttCheckoutFörsök = async (customerId) => stripe.checkout.sessions.create({
+    mode: "subscription",
+    customer: customerId,
+    line_items: [{
+      price: interval === "month" ? process.env.PRICE_MONTH : process.env.PRICE_YEAR,
+      quantity: 1,
+    }],
+    // Metadata följer med till webhooken så vi vet vem som betalade.
+    // Metadata följer med till webhooken. Samtycket till omedelbar
+    // leverans måste dokumenteras — utan det gäller 14 dagars
+    // ångerrätt även efter att kunden börjat använda tjänsten.
+    subscription_data: { metadata: { userId, angerratt: angerratt ? "ja" : "nej" } },
+    success_url: `${process.env.APP_URL}/?betalt=1`,
+    cancel_url: `${process.env.APP_URL}/?avbruten=1`,
+    allow_promotion_codes: true,
+    locale: "sv",
+  });
+
   try {
     const kund = await hamtaKund(userId);
     let customerId = kund?.stripe_customer_id;
 
     // Återanvänd kunden om personen redan handlat, annars skapa en ny.
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email,
-        metadata: { userId },
-      });
+      const customer = await stripe.customers.create({ email, metadata: { userId } });
       customerId = customer.id;
       await sattStripeKund(userId, customerId);
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{
-        price: interval === "month" ? process.env.PRICE_MONTH : process.env.PRICE_YEAR,
-        quantity: 1,
-      }],
-      // Metadata följer med till webhooken så vi vet vem som betalade.
-      // Metadata följer med till webhooken. Samtycket till omedelbar
-      // leverans måste dokumenteras — utan det gäller 14 dagars
-      // ångerrätt även efter att kunden börjat använda tjänsten.
-      subscription_data: { metadata: { userId, angerratt: angerratt ? "ja" : "nej" } },
-      success_url: `${process.env.APP_URL}/?betalt=1`,
-      cancel_url: `${process.env.APP_URL}/?avbruten=1`,
-      allow_promotion_codes: true,
-      locale: "sv",
-    });
+    let session;
+    try {
+      session = await nyttCheckoutFörsök(customerId);
+    } catch (err) {
+      // Sparad kund finns inte hos Stripe — t.ex. efter byte av Stripe-
+      // konto eller mellan test- och skarpt läge. Skapa en ny i stället
+      // för att fastna permanent på en död referens.
+      if (err.code === "resource_missing" && err.param === "customer") {
+        const customer = await stripe.customers.create({ email, metadata: { userId } });
+        customerId = customer.id;
+        await sattStripeKund(userId, customerId);
+        session = await nyttCheckoutFörsök(customerId);
+      } else {
+        throw err;
+      }
+    }
 
     res.json({ url: session.url });
   } catch (err) {
