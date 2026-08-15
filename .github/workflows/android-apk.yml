@@ -24,12 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Capacitors CLI kräver Node 22 eller senare och avbryter direkt
+      # på äldre versioner.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
