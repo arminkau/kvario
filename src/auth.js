@@ -17,7 +17,48 @@ export const hasAuth = Boolean(url && key);
 
 /* anon-nyckeln är publik med flit. Det som skyddar datan är
    Row Level Security i databasen, inte att nyckeln är hemlig. */
-export const supabase = hasAuth ? createClient(url, key) : null;
+
+/* Inställningarna nedan är Supabases standardvärden, utskrivna med
+   flit. Att en inloggning överlever att appen stängs är inget man
+   vill att en framtida biblioteksuppdatering ska kunna ändra tyst.
+
+   Nyckeln som sessionen sparas under lämnas medvetet till Supabase.
+   Ett eget namn hade loggat ut alla som är inloggade just nu, och
+   skyddar bara mot att krocka med ett annat Supabase-projekt på
+   samma adress — vilket inte finns här. */
+export const supabase = hasAuth
+  ? createClient(url, key, {
+      auth: {
+        persistSession: true,      // sparas i localStorage och överlever omstart
+        autoRefreshToken: true,    // förnyar accesstoken innan den går ut
+        detectSessionInUrl: true,  // krävs för Google och återställningslänkar
+      },
+    })
+  : null;
+
+/* ---------- Förnyelse när appen vaknar ----------
+   autoRefreshToken drivs av en timer. Ligger appen i bakgrunden på
+   telefonen fryser den timern, och när användaren kommer tillbaka
+   kan accesstoken ha gått ut. Utan det här kan appen visa
+   inloggningsrutan i en sekund innan den hämtat sig — eller fastna
+   där om första anropet råkar gå före förnyelsen.
+
+   getSession() förnyar av sig själv när token är utgången, så det
+   räcker att fråga efter den vid uppvaknandet. */
+export function bevakaSession() {
+  if (!hasAuth) return () => {};
+
+  const vakna = () => {
+    if (document.visibilityState === "visible") supabase.auth.getSession();
+  };
+
+  document.addEventListener("visibilitychange", vakna);
+  window.addEventListener("focus", vakna);
+  return () => {
+    document.removeEventListener("visibilitychange", vakna);
+    window.removeEventListener("focus", vakna);
+  };
+}
 
 /* ---------- Lösenord ----------
    Appens huvudsakliga inloggning. Den magiska länken är borttagen:

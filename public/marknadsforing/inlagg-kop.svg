@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080" role="img"
+     aria-label="Samma dator. 5 373 kr genom firman, 21 440 kr privat.">
+  <!-- Kvadrat 1080x1080. Siffrorna kommer ur appens marginalmotor
+       vid 44 procents marginal — samma tal som räknaren visar. -->
+  <defs>
+    <style>
+      .rubrik { font-family:'Familjen Grotesk','Segoe UI',system-ui,sans-serif; font-weight:700; letter-spacing:-2.5px; }
+      .tal    { font-family:'IBM Plex Mono','Cascadia Mono',Consolas,monospace; font-weight:600; }
+      .etikett{ font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; font-weight:600; letter-spacing:2.6px; }
+      .brod   { font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; font-weight:400; }
+    </style>
+  </defs>
+
+  <rect width="1080" height="1080" fill="#131E26"/>
+
+  <!-- Märket, ljus version mot mörk botten -->
+  <g transform="translate(80,72)">
+    <rect width="44" height="44" rx="10" fill="#FAFCFB"/>
+    <rect x="10" y="8"  width="24" height="6"  fill="#8A9CA8"/>
+    <rect x="10" y="15" width="24" height="4"  fill="#63798A"/>
+    <rect x="10" y="20" width="24" height="4"  fill="#3E5566"/>
+    <rect x="10" y="25" width="24" height="11" fill="#B8862B"/>
+    <text x="60" y="32" class="rubrik" font-size="27" letter-spacing="-0.8" fill="#FAFCFB">Kvario</text>
+  </g>
+
+  <text x="80" y="266" class="rubrik" font-size="72" fill="#FAFCFB">En dator för 12 000 kr.</text>
+  <text x="80" y="346" class="rubrik" font-size="72" fill="#8698A1">Vad kostar den dig?</text>
+
+  <!-- Två staplar som jämförs. Höjden är proportionell mot beloppen,
+       så skillnaden syns innan man läst en enda siffra. -->
+  <g transform="translate(80,440)">
+    <!-- Genom firman: 5 373 -->
+    <rect x="0" y="118" width="380" height="106" fill="#B8862B"/>
+    <text x="0" y="96"  class="etikett" font-size="19" fill="#B8862B">GENOM FIRMAN</text>
+    <text x="0" y="196" class="tal"     font-size="54" fill="#131E26">5 373 kr</text>
+
+    <!-- Privat: 21 440 -->
+    <rect x="460" y="0" width="380" height="424" fill="#3E5566"/>
+    <text x="460" y="-22" class="etikett" font-size="19" fill="#8698A1">PRIVAT</text>
+    <text x="460" y="252" class="tal"     font-size="54" fill="#FAFCFB">21 440 kr</text>
+    <text x="460" y="300" class="brod"    font-size="24" fill="#AEBCC3">måste du fakturera</text>
+  </g>
+
+  <line x1="80" y1="932" x2="1000" y2="932" stroke="#2A3A45" stroke-width="2"/>
+
+  <text x="80" y="988" class="brod" font-size="28" fill="#AEBCC3">Momsen får du tillbaka, och vinsten den äter upp</text>
+  <text x="80" y="1026" class="brod" font-size="28" fill="#AEBCC3">hade ändå beskattats. Fyra gånger skillnaden.</text>
+
+  <text x="1000" y="1026" class="brod" font-size="17" fill="#63798A" text-anchor="end">Exempel · 44 % marginal</text>
+</svg>

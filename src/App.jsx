@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -270,9 +270,17 @@ export default function KvarioApp() {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
       if (e === "PASSWORD_RECOVERY") setPasswordRecovery(true);
-      setSession(s);
+      /* INITIAL_SESSION och TOKEN_REFRESHED bär också en giltig
+         session. Att skriva över med null vid en förnyelse som ännu
+         inte hunnit klart skulle kasta ut en inloggad användare. */
+      if (e === "SIGNED_OUT") { setSession(null); return; }
+      if (s) setSession(s);
     });
-    return () => sub.subscription.unsubscribe();
+
+    // Förnyar token när appen kommer tillbaka från bakgrunden.
+    const slutaBevaka = bevakaSession();
+
+    return () => { sub.subscription.unsubscribe(); slutaBevaka(); };
   }, []);
 
   const userId = session?.user?.id || null;
