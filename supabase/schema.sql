@@ -263,3 +263,42 @@ language sql stable security definer set search_path = public as $$
   join auth.users u on u.id = s.user_id
   where public.ar_admin();
 $$;
+
+
+-- ============================================================
+-- 9. Delade rapporter — läsbehörighet för redovisningskonsulten
+-- ============================================================
+
+-- Token ÄR behörigheten, precis som en delad Google Docs-länk.
+-- Ingen inloggning krävs på mottagarsidan. Återkallas eller går ut
+-- länken slutar den fungera direkt.
+create table if not exists public.delade_rapporter (
+  token       text primary key default gen_random_uuid()::text,
+  user_id     uuid not null references auth.users on delete cascade,
+  skapad_at   timestamptz not null default now(),
+  giltig_till timestamptz not null default (now() + interval '30 days'),
+  aterkallad  boolean not null default false
+);
+
+alter table public.delade_rapporter enable row level security;
+
+create policy "läs egna delade rapporter" on public.delade_rapporter
+  for select using (auth.uid() = user_id);
+create policy "skapa egen delad rapport" on public.delade_rapporter
+  for insert with check (auth.uid() = user_id);
+create policy "återkalla egen delad rapport" on public.delade_rapporter
+  for update using (auth.uid() = user_id);
+
+create index if not exists delade_rapporter_user_idx on public.delade_rapporter (user_id);
+
+-- Publik, tokenbaserad läsning av det data som ligger bakom en delad
+-- rapport. Kontrollerar giltighet själv — ogiltig eller återkallad
+-- token ger ingenting tillbaka, aldrig ett fel som avslöjar varför.
+create or replace function public.hamta_delad_rapport(t text)
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  select u.data
+  from public.delade_rapporter d
+  join public.user_state u on u.user_id = d.user_id
+  where d.token = t and not d.aterkallad and d.giltig_till > now();
+$$;

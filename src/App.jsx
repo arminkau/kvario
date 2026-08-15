@@ -14,6 +14,9 @@ import { VILLKOR, VILLKOR_VERSION } from "./villkor";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
 import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER } from "./tax";
 import { Marginalkurvan } from "./Charts.jsx";
+import { nastaSkattedatum } from "./skattedatum";
+import DeladVy from "./DeladVy.jsx";
+import { skapaDelning, listaDelningar, aterkallaDelning, delaUrl } from "./dela";
 import Landing from "./Landing.jsx";
 
 /* ============================================================
@@ -109,6 +112,8 @@ const DEFAULT_STATE = {
   setAside: 0,
 };
 
+const delaToken = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("dela") : null;
+
 export default function KvarioApp() {
   const [view, setView] = useState("landing");
   const [demo, setDemo] = useState(false);
@@ -116,6 +121,8 @@ export default function KvarioApp() {
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
   const [authLinkError, setAuthLinkError] = useState("");
+  const [delningar, setDelningar] = useState([]);
+  const [delningKopierad, setDelningKopierad] = useState(null);
   const [realAdmin, setRealAdmin] = useState(false);
   const [adminData, setAdminData] = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -268,6 +275,44 @@ export default function KvarioApp() {
   const setSetting = (k, v) =>
     setState((s) => ({ ...s, settingsMap: { ...s.settingsMap, [countryCode]: { ...s.settingsMap[countryCode], [k]: v } } }));
 
+  /* ---------- Delade rapporter ----------
+     Bara för riktiga inloggade konton — en delad länk pekar mot
+     user_state via en token, och den tabellen finns bara för dig
+     som har ett konto. */
+  const laddaDelningar = async () => {
+    try { setDelningar(await listaDelningar(session.user.id)); }
+    catch (e) { console.error("Kunde inte hämta delningar", e); }
+  };
+
+  useEffect(() => {
+    if (hasAuth && session?.user?.id && !demo) laddaDelningar();
+  }, [session?.user?.id, demo]);
+
+  const skapaNyDelning = async () => {
+    try {
+      await skapaDelning(session.user.id);
+      await laddaDelningar();
+    } catch (e) {
+      window.alert("Kunde inte skapa länken. Försök igen.");
+    }
+  };
+
+  const kopieraDelning = (token) => {
+    navigator.clipboard?.writeText(delaUrl(token));
+    setDelningKopierad(token);
+    setTimeout(() => setDelningKopierad(null), 2000);
+  };
+
+  const taBortDelning = async (token) => {
+    if (!window.confirm("Länken slutar fungera direkt. Vill du återkalla den?")) return;
+    try {
+      await aterkallaDelning(token);
+      await laddaDelningar();
+    } catch (e) {
+      window.alert("Kunde inte återkalla länken.");
+    }
+  };
+
   /* ---------- Adminpanelens data ----------
      RLS släpper igenom admins här (se ar_admin() i schema.sql), så
      det går att fråga direkt från klienten — ingen serveromväg
@@ -352,6 +397,28 @@ export default function KvarioApp() {
     return { revenue, outVat, inVat, vatDue: Math.max(0, outVat - inVat), costBase, unpaid, tax, count: used.length, momsreg, perTyp };
   }, [invoices, costs, paidOnly, countryCode, settings, state.form, payroll, personal.avgifter]);
 
+  /* ---------- Återkommande fakturor och kostnader ----------
+     Ingen bakgrundsjobb — bara ett engångsklick per ny månad, spärrat
+     mot dubbletter med en enda "senast tillagd"-månad i state. */
+  const manadNyckel = (dt = new Date()) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+  const aterkommandeInv = invoices.filter((i) => i.recurring);
+  const aterkommandeCost = costs.filter((c) => c.recurring);
+  const kanLaggaTillAterkommande =
+    (aterkommandeInv.length > 0 || aterkommandeCost.length > 0) &&
+    state.senastAterkommandeManad !== manadNyckel();
+
+  const laggTillAterkommande = () => {
+    const nyaInv = aterkommandeInv.map((i, idx) => ({ ...i, id: Date.now() + idx, paid: false }));
+    const nyaCost = aterkommandeCost.map((c, idx) => ({ ...c, id: Date.now() + 1000 + idx }));
+    patch({
+      invoices: [...invoices, ...nyaInv],
+      costs: [...costs, ...nyaCost],
+      senastAterkommandeManad: manadNyckel(),
+    });
+  };
+
+  const skattedatum = useMemo(() => nastaSkattedatum(), []);
+
   /* ---------- Prognos ---------- */
   const forecast = useMemo(() => {
     if (!d.tax) return null;
@@ -421,8 +488,8 @@ export default function KvarioApp() {
   const barTotal = Math.max(1, total);
 
   /* ---------- Åtgärder ---------- */
-  const [inv, setInv] = useState({ client: "", amount: "", vat: 25, currency: "SEK", typ: "se" });
-  const [cost, setCost] = useState({ label: "", amount: "", vat: 25, currency: "SEK" });
+  const [inv, setInv] = useState({ client: "", amount: "", vat: 25, currency: "SEK", typ: "se", recurring: false });
+  const [cost, setCost] = useState({ label: "", amount: "", vat: 25, currency: "SEK", recurring: false });
   const [emp, setEmp] = useState({ name: "", monthly: "", fodelsear: "", vaxa: false });
 
   const addEmployee = () => {
@@ -453,13 +520,13 @@ export default function KvarioApp() {
     if (atLimit) return setShowPaywall(true);
     const a = parseFloat(String(inv.amount).replace(",", "."));
     if (!inv.client.trim() || !a || a <= 0) return;
-    patch({ invoices: [...invoices, { id: Date.now(), client: inv.client.trim(), amount: a, currency: inv.currency, vat: +inv.vat, paid: false }] });
+    patch({ invoices: [...invoices, { id: Date.now(), client: inv.client.trim(), amount: a, currency: inv.currency, vat: +inv.vat, paid: false, recurring: !!inv.recurring }] });
     setInv({ ...inv, client: "", amount: "" });
   };
   const addCost = () => {
     const a = parseFloat(String(cost.amount).replace(",", "."));
     if (!cost.label.trim() || !a || a <= 0) return;
-    patch({ costs: [...costs, { id: Date.now(), label: cost.label.trim(), amount: a, currency: cost.currency, vat: +cost.vat }] });
+    patch({ costs: [...costs, { id: Date.now(), label: cost.label.trim(), amount: a, currency: cost.currency, vat: +cost.vat, recurring: !!cost.recurring }] });
     setCost({ ...cost, label: "", amount: "" });
   };
 
@@ -529,6 +596,8 @@ export default function KvarioApp() {
         </div>
       </div>
     ) : null;
+
+  if (delaToken) return <DeladVy token={delaToken} />;
 
   if (!authReady) return <div className="kvar"><style>{CSS}</style><div className="wrap"><p className="empty">Ett ögonblick…</p></div></div>;
 
@@ -983,6 +1052,28 @@ export default function KvarioApp() {
           </div>
         )}
 
+        {/* VIKTIGA DATUM */}
+        {countryCode === "SE" && (
+          <div className="panel">
+            <div className="panelHead">
+              <h2>Nästa deklarationsdatum</h2>
+              <Info id="datum" open={openInfo} setOpen={setOpenInfo} />
+              <span className="eyebrow">{skattedatum.dagarKvar} dagar kvar</span>
+            </div>
+            <InfoBox id="datum" open={openInfo}>
+              Ungefärligt datum för den som redovisar moms en gång om året tillsammans med
+              inkomstdeklarationen — vanligast under omsättningsgränsen. Datumet kan flytta
+              sig någon dag mellan år, och redovisar du moms varje kvartal eller månad gäller
+              andra datum för dig. Kontrollera alltid ditt eget datum på skatteverket.se.
+            </InfoBox>
+            <p className="mgLead">
+              <b>Inkomstdeklaration och momsdeklaration för {skattedatum.inkomstar}</b>{" "}
+              ska normalt vara inne senast{" "}
+              <b className="brass">{skattedatum.datum.toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" })}</b>.
+            </p>
+          </div>
+        )}
+
         {/* INSTÄLLNINGAR */}
         {form && form.settings && (
           <div className="settings">
@@ -1224,6 +1315,17 @@ export default function KvarioApp() {
           </div>
         )}
 
+        {kanLaggaTillAterkommande && (
+          <div className="alert">
+            <span className="bang">!</span>
+            <p>
+              <strong>{aterkommandeInv.length + aterkommandeCost.length} återkommande post{aterkommandeInv.length + aterkommandeCost.length === 1 ? "" : "er"} för den här månaden.</strong>{" "}
+              Lägg till samma fakturor och kostnader som är märkta återkommande, med obetald status på fakturorna.{" "}
+              <button className="linkbtn" onClick={laggTillAterkommande}>Lägg till nu</button>
+            </p>
+          </div>
+        )}
+
         {/* LISTOR */}
         <div className="cols">
           <div className="panel">
@@ -1258,6 +1360,7 @@ export default function KvarioApp() {
                 <span className="iname">
                   {i.client}
                   {i.typ && i.typ !== "se" && <span className="regelTag">{FAKTURATYPER[i.typ].kort}</span>}
+                  {i.recurring && <span className="regelTag" title="Återkommande varje månad">↻</span>}
                 </span>
                 <span className="iamt">{kr(i.amount)} {i.currency}
                   {i.currency !== "SEK" && <span className="dim"> · {kr(i.amount * FX[i.currency])} kr</span>}</span>
@@ -1287,6 +1390,11 @@ export default function KvarioApp() {
                   {country.vatRates.map((r) => <option key={r} value={r}>{r} %</option>)}
                 </select>
               )}
+              <label className="vaxaVal" title="Läggs till igen med ett klick varje ny månad">
+                <input type="checkbox" checked={inv.recurring}
+                       onChange={(e) => setInv({ ...inv, recurring: e.target.checked })} />
+                Återkommande
+              </label>
               <button className="add" onClick={addInvoice}>Lägg till</button>
             </div>
           </div>
@@ -1299,7 +1407,10 @@ export default function KvarioApp() {
             {costs.length === 0 && <p className="empty">Varje avdragsgill kostnad sänker både skatten och {country.vatName.toLowerCase()}en du ska betala.</p>}
             {costs.map((c) => (
               <div className="item" key={c.id}>
-                <span className="iname">{c.label}</span>
+                <span className="iname">
+                  {c.label}
+                  {c.recurring && <span className="regelTag" title="Återkommande varje månad">↻</span>}
+                </span>
                 <span className="iamt">{kr(c.amount)} {c.currency}
                   {c.currency !== "SEK" && <span className="dim"> · {kr(c.amount * FX[c.currency])} kr</span>}</span>
                 <button className="x" onClick={() => patch({ costs: costs.filter((x) => x.id !== c.id) })} aria-label="Ta bort">×</button>
@@ -1319,6 +1430,11 @@ export default function KvarioApp() {
                       title={d.momsreg ? "Momssats" : "Momssats på inköpet — räknas som kostnad"}>
                 {country.vatRates.map((r) => <option key={r} value={r}>{r} %</option>)}
               </select>
+              <label className="vaxaVal" title="Läggs till igen med ett klick varje ny månad">
+                <input type="checkbox" checked={cost.recurring}
+                       onChange={(e) => setCost({ ...cost, recurring: e.target.checked })} />
+                Återkommande
+              </label>
               <button className="add" onClick={addCost}>Lägg till</button>
             </div>
 
@@ -1362,6 +1478,36 @@ export default function KvarioApp() {
             ))}
           </div>
         </div>
+
+        {hasAuth && session && !demo && (
+          <div className="panel">
+            <div className="panelHead">
+              <h2>Dela med redovisningskonsult</h2>
+                  <Info id="dela" open={openInfo} setOpen={setOpenInfo} />
+              <span className="eyebrow">{delningar.length} aktiva länkar</span>
+            </div>
+            <InfoBox id="dela" open={openInfo}>
+              Länken visar en skrivskyddad rapport med samma siffror som Rapporter ovan —
+              live, alltså uppdaterad varje gång den öppnas, inte en ögonblicksbild. Ingen
+              inloggning krävs för den som får länken. Den slutar fungera efter 30 dagar,
+              eller direkt om du återkallar den här.
+            </InfoBox>
+            {delningar.length === 0 && <p className="empty">Ingen aktiv länk än.</p>}
+            {delningar.map((del) => (
+              <div className="item" key={del.token}>
+                <span className="iname">
+                  Skapad {new Date(del.skapad_at).toLocaleDateString("sv-SE")}
+                  <span className="dim"> · giltig till {new Date(del.giltig_till).toLocaleDateString("sv-SE")}</span>
+                </span>
+                <button className="linkbtn" onClick={() => kopieraDelning(del.token)}>
+                  {delningKopierad === del.token ? "Kopierad!" : "Kopiera länk"}
+                </button>
+                <button className="x" onClick={() => taBortDelning(del.token)} aria-label="Återkalla">×</button>
+              </div>
+            ))}
+            <button className="add" style={{ marginTop: 12 }} onClick={skapaNyDelning}>Skapa ny länk</button>
+          </div>
+        )}
 
         {visaData && (
           <div className="panel">
