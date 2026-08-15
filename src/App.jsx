@@ -172,6 +172,9 @@ export default function KvarioApp() {
   const [statistik, setStatistik] = useState(false);
   const [mode, setMode] = useState("business");
   const timer = useRef(null);
+  // Det vi själva senast skrev till molnet. Skiljer sig molnets
+  // version från den har en annan enhet ändrat något.
+  const senastSkrivet = useRef(null);
 
   const { countryCode, invoices, costs, paidOnly, hourlyRate, plan, setAside } = state;
   const employees = state.employees || [];
@@ -268,7 +271,10 @@ export default function KvarioApp() {
       setLoaded(false);
       try {
         const r = await store.get(STORAGE_KEY);
-        if (alive && r?.value) setState({ ...DEFAULT_STATE, ...JSON.parse(r.value) });
+        if (alive && r?.value) {
+          setState({ ...DEFAULT_STATE, ...JSON.parse(r.value) });
+          senastSkrivet.current = r.value;
+        }
       } catch { /* inget sparat än */ }
       if (hasAuth && userId) {
         try {
@@ -292,7 +298,9 @@ export default function KvarioApp() {
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       try {
-        await store.set(STORAGE_KEY, JSON.stringify(state));
+        const json = JSON.stringify(state);
+        await store.set(STORAGE_KEY, json);
+        senastSkrivet.current = json;
         setSaveState("saved");
         setTimeout(() => setSaveState("idle"), 1600);
       } catch {
@@ -301,6 +309,38 @@ export default function KvarioApp() {
     }, 600);
     return () => clearTimeout(timer.current);
   }, [state, loaded, store]);
+
+  /* ---------- Hämta om när appen kommer i förgrunden ----------
+     Hela datan skrivs som ett block. Ligger appen öppen i mobilen
+     medan något ändras på webben, och man sedan rör mobilen, skulle
+     mobilens gamla block skriva över det nya — ändringen vore borta
+     utan att någon märkte det.
+
+     Därför läses datan om när fliken eller appen blir synlig igen.
+     Skiljer sig molnets version från det vi själva senast skrev har
+     någon annan enhet ändrat, och då är den versionen den färskare.
+     Det är ingen fullständig synk i realtid, men det stänger fönstret
+     där data faktiskt går förlorad. */
+  useEffect(() => {
+    if (!hasAuth || !userId || !loaded) return;
+
+    const hamtaOm = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const r = await store.get(STORAGE_KEY);
+        if (!r?.value || r.value === senastSkrivet.current) return;
+        senastSkrivet.current = r.value;
+        setState({ ...DEFAULT_STATE, ...JSON.parse(r.value) });
+      } catch { /* nätet nere — behåll det vi har */ }
+    };
+
+    document.addEventListener("visibilitychange", hamtaOm);
+    window.addEventListener("focus", hamtaOm);
+    return () => {
+      document.removeEventListener("visibilitychange", hamtaOm);
+      window.removeEventListener("focus", hamtaOm);
+    };
+  }, [userId, loaded, store]);
 
   const setSetting = (k, v) =>
     setState((s) => ({ ...s, settingsMap: { ...s.settingsMap, [countryCode]: { ...s.settingsMap[countryCode], [k]: v } } }));
@@ -1135,6 +1175,30 @@ export default function KvarioApp() {
             <div className="envBar">
               <div className="envFill" style={{ width: `${Math.min(100, (setAside / Math.max(1, owed)) * 100)}%` }} />
             </div>
+
+            {/* Momsen är den del som ska rapporteras separat och
+                oftast först. Den låg tidigare bara inbakad i summan. */}
+            {d.momsreg && (
+              <div className="lagringVal">
+                <div className="eyebrow" style={{ marginBottom: 10 }}>Varav moms att redovisa</div>
+                <div className="item">
+                  <span className="iname">Utgående moms<div className="dim">Det du tagit ut av kunderna</div></span>
+                  <span className="iamt">{kr(d.outVat)} kr</span>
+                </div>
+                <div className="item">
+                  <span className="iname">Ingående moms<div className="dim">Det du betalat på inköp och får dra av</div></span>
+                  <span className="iamt">−{kr(d.inVat)} kr</span>
+                </div>
+                <div className="item">
+                  <span className="iname"><b>{d.outVat - d.inVat >= 0 ? "Att betala in" : "Att få tillbaka"}</b></span>
+                  <span className="iamt brass"><b>{kr(Math.abs(d.outVat - d.inVat))} kr</b></span>
+                </div>
+                <p className="limitNote">
+                  Momsen var aldrig dina pengar. Full uppdelning per skattesats finns i
+                  rapporten Momsunderlag.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
