@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -2010,6 +2010,11 @@ export default function KvarioApp() {
                 <button className="add" onClick={sparaNyttLosen}>Byt lösenord</button>
               </div>
             </div>
+
+            <p className="foot" style={{ marginTop: 14 }}>
+              Du förblir inloggad tills du loggar ut — inloggningen ligger kvar
+              {sessionLagring === "app" ? " i telefonens egen lagring" : " i den här webbläsaren"}.
+            </p>
           </div>
         )}
 

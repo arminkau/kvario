@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { Preferences } from "@capacitor/preferences";
 
 /* ============================================================
    Inloggning
@@ -18,20 +19,43 @@ export const hasAuth = Boolean(url && key);
 /* anon-nyckeln är publik med flit. Det som skyddar datan är
    Row Level Security i databasen, inte att nyckeln är hemlig. */
 
+/* ---------- Var sessionen sparas ----------
+   I webbläsaren duger localStorage. I appen gör den inte det:
+   Androids webbvy garanterar inte att localStorage hinner skrivas
+   till disk innan processen dödas, så den som stängde appen kunde
+   få logga in igen. Testat — samma konto låg kvar i Chrome på
+   telefonen men inte i appen.
+
+   Inuti appen sparas sessionen därför i telefonens egen lagring
+   via Capacitor, som överlever att appen stängs.
+
+   Bara i appen. På webben skulle ett byte av lagring logga ut alla
+   som redan är inloggade, eftersom nycklarna heter något annat. */
+const iApp = (() => {
+  try { return window.Capacitor?.isNativePlatform?.() === true; }
+  catch { return false; }
+})();
+
+/* Läses av Konto-fliken. Att raden syns är också vårt enda kvitto på
+   att bytet slog igenom — vi kan inte köra appen härifrån. */
+export const sessionLagring = iApp ? "app" : "webblasare";
+
+const telefonLagring = {
+  getItem: async (nyckel) => (await Preferences.get({ key: nyckel })).value ?? null,
+  setItem: async (nyckel, varde) => { await Preferences.set({ key: nyckel, value: varde }); },
+  removeItem: async (nyckel) => { await Preferences.remove({ key: nyckel }); },
+};
+
 /* Inställningarna nedan är Supabases standardvärden, utskrivna med
    flit. Att en inloggning överlever att appen stängs är inget man
-   vill att en framtida biblioteksuppdatering ska kunna ändra tyst.
-
-   Nyckeln som sessionen sparas under lämnas medvetet till Supabase.
-   Ett eget namn hade loggat ut alla som är inloggade just nu, och
-   skyddar bara mot att krocka med ett annat Supabase-projekt på
-   samma adress — vilket inte finns här. */
+   vill att en framtida biblioteksuppdatering ska kunna ändra tyst. */
 export const supabase = hasAuth
   ? createClient(url, key, {
       auth: {
-        persistSession: true,      // sparas i localStorage och överlever omstart
+        persistSession: true,      // överlever omstart
         autoRefreshToken: true,    // förnyar accesstoken innan den går ut
         detectSessionInUrl: true,  // krävs för Google och återställningslänkar
+        ...(iApp ? { storage: telefonLagring } : {}),
       },
     })
   : null;
