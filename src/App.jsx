@@ -1029,6 +1029,15 @@ export default function KvarioApp() {
         {/* INSTÄLLNINGAR */}
         {form && form.settings && (
           <div className="settings">
+            <div className="panelHead">
+              <h2>Inställningar</h2>
+              <span className={`save save-${saveState}`}>
+                {saveState === "saving" ? "Sparar…"
+                  : saveState === "error" ? "Kunde inte spara"
+                  : hasAuth && session ? "Sparas automatiskt på ditt konto"
+                  : "Sparas automatiskt i den här webbläsaren"}
+              </span>
+            </div>
             <div className="sblock">
               <div className="slabel">Födelseår</div>
               <input className="w90 num" type="number" placeholder="ÅÅÅÅ"
