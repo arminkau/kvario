@@ -115,6 +115,7 @@ export default function KvarioApp() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
+  const [authLinkError, setAuthLinkError] = useState("");
   const [realAdmin, setRealAdmin] = useState(false);
   const [adminData, setAdminData] = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -192,9 +193,19 @@ export default function KvarioApp() {
     try { await makeStorage(null).set("kvario:samtycke", JSON.stringify(v)); } catch {}
   };
 
-  /* ---------- Session ---------- */
+  /* ---------- Session ----------
+     En redan använd eller utgången länk ger annars inget besked —
+     man hamnar bara tillbaka på landningssidan utan förklaring,
+     vilket lätt misstas för att inloggningen "inte gjorde något". */
   useEffect(() => {
     if (!hasAuth) return;
+    if (window.location.hash.includes("error=")) {
+      const p = new URLSearchParams(window.location.hash.slice(1));
+      setAuthLinkError(
+        p.get("error_description")?.replace(/\+/g, " ") || "Länken kunde inte användas."
+      );
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthReady(true);
@@ -522,7 +533,7 @@ export default function KvarioApp() {
   if (!authReady) return <div className="kvar"><style>{CSS}</style><div className="wrap"><p className="empty">Ett ögonblick…</p></div></div>;
 
   if (hasAuth && !session && !demo) {
-    if (view === "landing")
+    if (view === "landing" && !authLinkError)
       return (
         <div className="kvar">
           <style>{CSS}</style>
@@ -537,8 +548,19 @@ export default function KvarioApp() {
       <div className="kvar">
         <style>{CSS}</style>
         <SamtyckesRuta />
+        {authLinkError && (
+          <div className="alert" style={{ maxWidth: 420, margin: "16px auto 0" }}>
+            <span className="bang">!</span>
+            <p>
+              <strong>Länken kunde inte användas.</strong> {authLinkError.includes("expired") || authLinkError.includes("invalid")
+                ? "Den är antingen redan använd eller för gammal — varje länk fungerar bara en gång. Be om en ny nedan."
+                : authLinkError}{" "}
+              <button className="linkbtn" onClick={() => setAuthLinkError("")}>Stäng</button>
+            </p>
+          </div>
+        )}
         <Login
-          onBack={() => setView("landing")}
+          onBack={() => { setAuthLinkError(""); setView("landing"); }}
           onTestkonto={undefined}
         />
       </div>

@@ -30,6 +30,27 @@ export async function sendMagicLink(email) {
   if (error) throw error;
 }
 
+/* ---------- Lösenord ----------
+   Alternativ till den magiska länken, för den som hellre vill
+   logga in direkt utan att lämna appen och kolla mejlen. */
+export async function signInWithPassword(email, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+/* Kräver bekräftelsemejl om Supabase-projektet har "Confirm email"
+   påslaget (standard) — kontot blir då inte inloggat förrän länken
+   i det mejlet klickats. */
+export async function signUpWithPassword(email, password) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  if (error) throw error;
+  return data;
+}
+
 /* ---------- Google ----------
    Slås på i Supabase under Authentication -> Providers. */
 export async function signInWithGoogle() {
