@@ -19,17 +19,6 @@ export const hasAuth = Boolean(url && key);
    Row Level Security i databasen, inte att nyckeln är hemlig. */
 export const supabase = hasAuth ? createClient(url, key) : null;
 
-/* ---------- Magisk länk ----------
-   Ingen lösenordshantering, inga glömda lösenord, ingen
-   läcka den dagen någon återanvänt sitt lösenord. */
-export async function sendMagicLink(email) {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin },
-  });
-  if (error) throw error;
-}
-
 /* ---------- Lösenord ----------
    Alternativ till den magiska länken, för den som hellre vill
    logga in direkt utan att lämna appen och kolla mejlen. */
