@@ -57,24 +57,29 @@ export async function skapaOrder({
 
   const { moms } = momsdelar(beloppOre);
 
-  const { data, error } = await db
-    .from("orders")
-    .insert({
-      ordernummer: nummer,
-      user_id: userId || null,
-      epost,
-      stripe_invoice_id: stripeInvoiceId,
-      stripe_customer_id: stripeCustomerId,
-      belopp_ore: beloppOre,
-      moms_ore: moms,
-      valuta: valuta || "SEK",
-      interval,
-      betald_at: betaldAt,
-      period_slut: periodSlut,
-      angerratt_samtycke: !!angerratt,
-    })
-    .select()
-    .single();
+  const rad = (uid) => ({
+    ordernummer: nummer,
+    user_id: uid,
+    epost,
+    stripe_invoice_id: stripeInvoiceId,
+    stripe_customer_id: stripeCustomerId,
+    belopp_ore: beloppOre,
+    moms_ore: moms,
+    valuta: valuta || "SEK",
+    interval,
+    betald_at: betaldAt,
+    period_slut: periodSlut,
+    angerratt_samtycke: !!angerratt,
+  });
+
+  let { data, error } = await db.from("orders").insert(rad(userId || null)).select().single();
+
+  // userId pekar inte på ett riktigt konto (borttaget, eller ett
+  // testvärde). Ordern och kvittot ska ändå sparas — bara utan
+  // koppling till ett konto — så pengarna aldrig tappas bort.
+  if (error?.code === "23503") {
+    ({ data, error } = await db.from("orders").insert(rad(null)).select().single());
+  }
 
   if (error) {
     // Kapplöpning: en annan webhookleverans hann före mellan vår
