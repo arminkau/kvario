@@ -116,6 +116,17 @@ function NyttLosenordVy({ onKlart }) {
 const kr = (n) => Math.round(n || 0).toLocaleString("sv-SE").replace(/\u00a0/g, " ");
 const pct = (n) => (n * 100).toFixed(1).replace(".", ",");
 
+/* \u00c5rtalet tas bort n\u00e4r posten h\u00f6r till innevarande \u00e5r \u2014 det \u00e4r
+   underf\u00f6rst\u00e5tt, och raderna blir l\u00e4ttare att skumma utan det. */
+const visaDatum = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const iAr = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("sv-SE", iAr
+    ? { day: "numeric", month: "short" }
+    : { day: "numeric", month: "short", year: "numeric" });
+};
+
 const TRIAL_DAYS = 14;
 
 const DEFAULT_STATE = {
@@ -476,6 +487,12 @@ export default function KvarioApp() {
     }
     return { revenue, outVat, inVat, vatDue: Math.max(0, outVat - inVat), costBase, unpaid, tax, count: used.length, momsreg, perTyp };
   }, [invoices, costs, paidOnly, countryCode, settings, state.form, payroll, personal.avgifter]);
+
+  /* Nyast först i listorna. Utan sortering står posterna i den
+     ordning de matats in, vilket ser slumpmässigt ut så snart
+     datumen syns. Poster utan datum hamnar sist. */
+  const efterDatum = (lista) =>
+    [...lista].sort((a, b) => (b.datum || "").localeCompare(a.datum || ""));
 
   /* ---------- Återkommande fakturor och kostnader ----------
      Ingen bakgrundsjobb — bara ett engångsklick per ny månad, spärrat
@@ -1651,10 +1668,13 @@ export default function KvarioApp() {
         <div className="cols">
           <div className="panel">
             <div className="panelHead">
-              <h2>Fakturor</h2>
+              {/* "Fakturerat" i stället för "Fakturor": rubriken ska
+                  säga att det är pengar in, inte vilken sorts papper
+                  posterna är. Parar ihop sig med "Kostnader". */}
+              <h2>Fakturerat</h2>
                   <Info id="moms" open={openInfo} setOpen={setOpenInfo} />
               <span className="eyebrow">
-                {invoices.length}{limit !== Infinity && ` av ${limit}`}
+                {kr(d.revenue)} kr · {invoices.length}{limit !== Infinity && ` av ${limit}`}
               </span>
             </div>
             <InfoBox id="moms" open={openInfo}>
@@ -1672,7 +1692,7 @@ export default function KvarioApp() {
                 inköp räknas som en kostnad i stället för ett avdrag.
               </p>
             )}
-            {invoices.map((i) => (
+            {efterDatum(invoices).map((i) => (
               <div className="item" key={i.id}>
                 <button className="tag" data-paid={i.paid}
                         onClick={() => patch({ invoices: invoices.map((x) => x.id === i.id ? { ...x, paid: !x.paid } : x) })}>
@@ -1682,6 +1702,7 @@ export default function KvarioApp() {
                   {i.client}
                   {i.typ && i.typ !== "se" && <span className="regelTag">{FAKTURATYPER[i.typ].kort}</span>}
                   {i.recurring && <span className="regelTag" title="Återkommande varje månad">↻</span>}
+                  {i.datum && <div className="dim">{visaDatum(i.datum)}</div>}
                 </span>
                 <span className="iamt">{kr(i.amount)} {i.currency}
                   {i.currency !== "SEK" && <span className="dim"> · {kr(i.amount * FX[i.currency])} kr</span>}</span>
@@ -1725,16 +1746,18 @@ export default function KvarioApp() {
           <div className="panel">
             <div className="panelHead">
               <h2>Kostnader</h2>
+              <span className="eyebrow">{kr(d.costBase)} kr · {costs.length}</span>
               <button className="linkbtn" onClick={exportCsv}>Exportera</button>
             </div>
             {costs.length === 0 && <p className="empty">Varje avdragsgill kostnad sänker både skatten och {country.vatName.toLowerCase()}en du ska betala.</p>}
-            {costs.map((c) => {
+            {efterDatum(costs).map((c) => {
               const egna = kvittonFor(c.id);
               return (
               <div className="item" key={c.id}>
                 <span className="iname">
                   {c.label}
                   {c.recurring && <span className="regelTag" title="Återkommande varje månad">↻</span>}
+                  {c.datum && <div className="dim">{visaDatum(c.datum)}</div>}
                   {hasAuth && session && egna.map((k) => (
                     <button key={k.id} className="regelTag kvittoTag" title={`${k.filnamn} — klicka för att öppna`}
                             onClick={() => oppnaKvitto(k)}>
