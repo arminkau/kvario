@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { signInWithGoogle, signInWithPassword, signUpWithPassword } from "./auth";
+import { signInWithGoogle, signInWithPassword, signUpWithPassword, skickaLosenordsAterstallning } from "./auth";
 import { TESTKONTON } from "./testdata";
 
 export default function Login({ onBack, onTestkonto }) {
@@ -9,6 +9,7 @@ export default function Login({ onBack, onTestkonto }) {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [uppSkickad, setUppSkickad] = useState(false);
+  const [aterstallningSkickad, setAterstallningSkickad] = useState(false);
 
   const giltigEpost = /^\S+@\S+\.\S+$/.test(email);
 
@@ -34,6 +35,19 @@ export default function Login({ onBack, onTestkonto }) {
     }
   };
 
+  const glomtLosenord = async () => {
+    if (!giltigEpost) return setError("Skriv din e-postadress ovan först.");
+    setStatus("sending");
+    setError("");
+    try {
+      await skickaLosenordsAterstallning(email.trim());
+      setAterstallningSkickad(true);
+    } catch {
+      setError("Kunde inte skicka länken. Försök igen om en stund.");
+    }
+    setStatus("idle");
+  };
+
   if (uppSkickad) {
     return (
       <div className="onboard">
@@ -45,6 +59,24 @@ export default function Login({ onBack, onTestkonto }) {
             att aktivera kontot, sedan kan du logga in med lösenordet du valde.
           </p>
           <button className="linkbtn" onClick={() => { setUppSkickad(false); setLage("in"); }}>
+            Tillbaka till inloggning
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (aterstallningSkickad) {
+    return (
+      <div className="onboard">
+        <div className="obCard">
+          <div className="brand"><h1>Kvario</h1></div>
+          <h2 className="obTitle">Kolla din inkorg</h2>
+          <p className="obLead">
+            Vi skickade en länk till <b>{email}</b> för att sätta ett nytt lösenord.
+            Gäller även konton som aldrig haft ett lösenord tidigare.
+          </p>
+          <button className="linkbtn" onClick={() => setAterstallningSkickad(false)}>
             Tillbaka till inloggning
           </button>
         </div>
@@ -92,6 +124,12 @@ export default function Login({ onBack, onTestkonto }) {
         <button className="add wide" onClick={submit} disabled={status === "sending"}>
           {status === "sending" ? "Skickar…" : lage === "in" ? "Logga in" : "Skapa konto"}
         </button>
+
+        {lage === "in" && (
+          <button className="linkbtn center" onClick={glomtLosenord} disabled={status === "sending"}>
+            Glömt lösenordet, eller aldrig haft ett?
+          </button>
+        )}
 
         <button className="linkbtn center" onClick={() => { setError(""); setLage(lage === "in" ? "upp" : "in"); }}>
           {lage === "in" ? "Ny här? Skapa konto" : "Har redan ett konto? Logga in"}

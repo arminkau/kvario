@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -51,6 +51,50 @@ function InfoBox({ id, open, children }) {
   return <div className="infoBox">{children}</div>;
 }
 
+/* Visas när man kommer in via en återställningslänk — även för
+   konton som aldrig haft ett lösenord. Sessionen från länken är
+   redan giltig, den bara saknar ett nytt lösenord ännu. */
+function NyttLosenordVy({ onKlart }) {
+  const [losenord, setLosenord] = useState("");
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (losenord.length < 6) return setError("Lösenordet måste vara minst 6 tecken.");
+    setStatus("sending");
+    setError("");
+    try {
+      await sattNyttLosenord(losenord);
+      onKlart();
+    } catch {
+      setError("Kunde inte spara lösenordet. Försök igen.");
+      setStatus("idle");
+    }
+  };
+
+  return (
+    <div className="kvar"><style>{CSS}</style>
+      <div className="onboard">
+        <div className="obCard">
+          <div className="brand"><h1>Kvario</h1></div>
+          <h2 className="obTitle">Sätt ett nytt lösenord</h2>
+          <label className="authLabel">
+            Lösenord
+            <input type="password" value={losenord} placeholder="Minst 6 tecken"
+                   onChange={(e) => setLosenord(e.target.value)}
+                   onKeyDown={(e) => e.key === "Enter" && submit()}
+                   autoComplete="new-password" autoFocus />
+          </label>
+          {error && <p className="authError">{error}</p>}
+          <button className="add wide" onClick={submit} disabled={status === "sending"}>
+            {status === "sending" ? "Sparar…" : "Spara lösenord"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const kr = (n) => Math.round(n || 0).toLocaleString("sv-SE").replace(/\u00a0/g, " ");
 const pct = (n) => (n * 100).toFixed(1).replace(".", ",");
 
@@ -87,6 +131,7 @@ export default function KvarioApp() {
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
   const [authLinkError, setAuthLinkError] = useState("");
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [delningar, setDelningar] = useState([]);
   const [delningKopierad, setDelningKopierad] = useState(null);
   const [realAdmin, setRealAdmin] = useState(false);
@@ -183,7 +228,10 @@ export default function KvarioApp() {
       setSession(data.session);
       setAuthReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
+      if (e === "PASSWORD_RECOVERY") setPasswordRecovery(true);
+      setSession(s);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -558,6 +606,8 @@ export default function KvarioApp() {
     ) : null;
 
   if (delaToken) return <DeladVy token={delaToken} />;
+
+  if (passwordRecovery) return <NyttLosenordVy onKlart={() => setPasswordRecovery(false)} />;
 
   if (!authReady) return <div className="kvar"><style>{CSS}</style><div className="wrap"><p className="empty">Ett ögonblick…</p></div></div>;
 

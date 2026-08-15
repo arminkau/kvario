@@ -40,6 +40,22 @@ export async function signUpWithPassword(email, password) {
   return data;
 }
 
+/* ---------- Glömt lösenord ----------
+   Även för konton som aldrig haft ett lösenord — t.ex. de som
+   skapades via den nu borttagna magiska länken. Skickar en länk
+   som loggar in med en tillfällig session, se sattNyttLosenord. */
+export async function skickaLosenordsAterstallning(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw error;
+}
+
+export async function sattNyttLosenord(nyttLosenord) {
+  const { error } = await supabase.auth.updateUser({ password: nyttLosenord });
+  if (error) throw error;
+}
+
 /* ---------- Google ----------
    Slås på i Supabase under Authentication -> Providers. */
 export async function signInWithGoogle() {
