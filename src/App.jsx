@@ -708,6 +708,14 @@ export default function KvarioApp() {
             ) : (
               <button className="upgrade" onClick={() => setShowPaywall(true)}>Uppgradera</button>
             )}
+            {demo && (
+              <button className="linkbtn" onClick={() => { setDemo(false); setView("landing"); setState(DEFAULT_STATE); }}>
+                Lämna demoläget
+              </button>
+            )}
+            {hasAuth && session && (
+              <button className="linkbtn" onClick={signOut} title={session.user.email}>Logga ut</button>
+            )}
           </div>
         </div>
 
@@ -1451,8 +1459,8 @@ export default function KvarioApp() {
           {" · "}<button className="linkbtn" onClick={() => setVisaPolicy((v) => !v)}>Integritetspolicy</button>
           {" · "}<button className="linkbtn" onClick={() => setVisaData((v) => !v)}>Din data</button>
           {state.villkor && <> · Godkända {new Date(state.villkor.at).toLocaleDateString("sv-SE")} (version {state.villkor.version})</>}
-          {demo && <> · Du tittar på exempeldata · <button className="linkbtn" onClick={() => { setDemo(false); setView("landing"); setState(DEFAULT_STATE); }}>Lämna demoläget</button></>}
-          {hasAuth && session && <> · Inloggad som {session.user.email} · <button className="linkbtn" onClick={signOut}>Logga ut</button></>}
+          {demo && <> · Du tittar på exempeldata</>}
+          {hasAuth && session && <> · Inloggad som {session.user.email}</>}
         </p>
       </div>
 
