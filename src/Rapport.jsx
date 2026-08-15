@@ -122,7 +122,7 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
             <Rad etikett={STAPEL.kvarTillDig} belopp={d.tax?.kvar} stark />
             {d.tax && (
               <Forklaring>
-                Det motsvarar {Math.round((d.tax.kvar / Math.max(1, d.revenue - d.costBase)) * 100)} %
+                Det motsvarar {Math.round((d.tax.kvar / Math.max(1, d.tax.overskott)) * 100)} %
                 av vinsten. Din marginalskatt är {(d.tax.marginal * 100).toFixed(1).replace(".", ",")} %,
                 vilket betyder att nästa intjänade hundralapp ger dig{" "}
                 {Math.round(100 - d.tax.marginal * 100)} kr efter skatt och avgifter.
@@ -154,7 +154,7 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
               <Rad etikett="Beräknat kvar till dig" belopp={forecast.projKvar} stark />
               {forecast.hits.map((m) => (
                 <Forklaring key={m.label}>
-                  <b>{m.label}</b> — {m.note} Gränsen går vid {kr(m.at)} kr.
+                  <b>{m.label}</b> — {m.note}
                 </Forklaring>
               ))}
             </section>

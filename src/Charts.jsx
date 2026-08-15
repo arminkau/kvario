@@ -68,7 +68,7 @@ export function Marginalkurvan({ form, revenue, costs, settings, payroll = 0, pa
       out.push([r, marginalskatt(form, { revenue: r, costs: c, settings, payroll, payrollAvgifter })]);
     }
     return out;
-  }, [form, revenue, costs, settings.kommunalskatt, settings.avgiftslage, settings.lonManad]);
+  }, [form, revenue, costs, settings.kommunalskatt, settings.avgiftslage]);
 
   const xs = (v) => P.l + (v / MAX) * (W - P.l - P.r);
   const ys = (v) => P.t + (1 - v / 0.7) * (H - P.t - P.b);

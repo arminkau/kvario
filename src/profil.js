@@ -8,7 +8,7 @@
 
    Verktyget förblir en uppskattning även när alla tre är ifyllda.
    Det som saknas är räntefördelning, periodiseringsfond och
-   sparat utdelningsutrymme, och de är medvetet inte byggda.
+   expansionsfond, och de är medvetet inte byggda.
 
    OBS: kommunalskattesatserna är ungefärliga och ska kontrolleras
    mot Skatteverkets aktuella tabell. De ändras varje år och beror
@@ -34,6 +34,4 @@ export const KYRKOAVGIFT_SNITT = 1.03;   // procent, endast medlemmar
 export const UTELAMNAT = [
   "Räntefördelning",
   "Periodiseringsfond och expansionsfond",
-  "Sparat utdelningsutrymme från tidigare år",
-  "Ägarandel vid flera delägare",
 ];

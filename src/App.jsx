@@ -76,7 +76,7 @@ export const DEMO_STATE = {
     { id: 4, label: "Företagsförsäkring", amount: 4200, currency: "SEK", vat: 25 },
     { id: 5, label: "Redovisningskonsult", amount: 12000, currency: "SEK", vat: 25 },
   ],
-  settingsMap: { SE: { kommunalskatt: 32.0, avgiftslage: "generell", pension: 0, lonManad: 32000, utdelning: true } },
+  settingsMap: { SE: { kommunalskatt: 32.0, avgiftslage: "generell", pension: 0 } },
   employees: [
     { id: 1, name: "Elin Sandberg", monthly: 34000, fodelsear: 1994, vaxa: true },
   ],
@@ -101,7 +101,7 @@ const DEFAULT_STATE = {
     { id: 1, label: "Dator", amount: 18900, currency: "SEK", vat: 25 },
     { id: 2, label: "Kontorsplats", amount: 24000, currency: "SEK", vat: 25 },
   ],
-  settingsMap: { SE: { kommunalskatt: 32.0, avgiftslage: "full", pension: 0, lonManad: 0, utdelning: true } },
+  settingsMap: { SE: { kommunalskatt: 32.0, avgiftslage: "full", pension: 0 } },
   employees: [],
   paidOnly: false,
   hourlyRate: 850,
@@ -206,26 +206,12 @@ export default function KvarioApp() {
 
   /* ---------- Ladda data och prenumeration ---------- */
   useEffect(() => {
-    const SamtyckesRuta = () =>
-    samtycke === null ? (
-      <div className="samtycke">
-        <div className="samtyckeInner">
-          <p>
-            <strong>Vi lagrar bara det som behövs.</strong> Inloggningen kräver en sessionsnyckel
-            i din webbläsare. Vi använder inga annonscookies och spårar dig inte mellan webbplatser.
-            Du får gärna dela anonym användningsstatistik så att vi vet vad vi ska förbättra — men
-            det är helt frivilligt.
-          </p>
-          <div className="samtyckeKnappar">
-            <button className="add" onClick={() => sparaSamtycke(true)}>Tillåt statistik</button>
-            <button className="authAlt smal" onClick={() => sparaSamtycke(false)}>Endast nödvändigt</button>
-          </div>
-        </div>
-      </div>
-    ) : null;
-
-  if (!authReady) return;
+    if (!authReady) return;
     if (hasAuth && !demo && !userId) { setLoaded(true); return; }
+    // Demoläget sätter sitt state direkt i knappens onClick. Läser vi
+    // härifrån också hinner ett gammalt sparat state (t.ex. en avbruten
+    // onboarding) läsas in ovanpå det och tysta demot innan det syns.
+    if (demo) { setLoaded(true); return; }
     let alive = true;
     (async () => {
       setLoaded(false);
@@ -352,8 +338,13 @@ export default function KvarioApp() {
     return { kind: "payout", sticker: amount, billNeeded: gross, hours: gross / rate };
   }, [what, mode, d, hourlyRate, countryCode]);
 
-  /* ---------- Stapeln ---------- */
-  const total = d.revenue + d.outVat;
+  /* ---------- Stapeln ----------
+     totalInvoiced är det fulla fakturerade beloppet inklusive moms,
+     till "av X kr infakturerat". Stapelns segment ska däremot summera
+     till nettomomsen (vatDue) — annars läcker den återbetalda ingående
+     momsen in i restposten och gör siffran i tooltipen fel. */
+  const totalInvoiced = d.revenue + d.outVat;
+  const total = d.revenue + d.vatDue;
   const segments = [
     ...(d.momsreg
       ? [{ key: "vat", label: country.vatName, amount: d.vatDue, color: "var(--band-1)", note: STAPEL.momsNot }]
@@ -690,7 +681,7 @@ export default function KvarioApp() {
             <div>
               <div className="eyebrow">{d.tax ? STAPEL.kvarTillDig : `Fakturerat i ${country.name}`}</div>
               <div className="bignum">{kr(d.tax ? d.tax.kvar : d.revenue)}<span className="unit">kr</span></div>
-              <div className="sub">av {kr(total)} kr infakturerat · {d.count} {d.count === 1 ? "faktura" : "fakturor"}</div>
+              <div className="sub">av {kr(totalInvoiced)} kr infakturerat · {d.count} {d.count === 1 ? "faktura" : "fakturor"}</div>
             </div>
             <div className="toggleRow">
               <button className="switch" data-on={paidOnly} onClick={() => patch({ paidOnly: !paidOnly })}
@@ -999,7 +990,7 @@ export default function KvarioApp() {
                 <Info id="marg" open={openInfo} setOpen={setOpenInfo} />
               <span className="eyebrow">{openChart === "marg" ? "Dölj" : "Visa diagram"}</span>
             </button>
-            <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen som tar slut, gränsbeloppet för utdelning, den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
+            <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen av egenavgifterna som tar slut, den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
             {!isPro && openChart === "marg" && (
               <div className="lockOverlay"><div>
                 <div className="eyebrow">{trial.ended ? "Fanns i din provperiod" : "Ingår i Pro"}</div>
