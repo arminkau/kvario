@@ -142,8 +142,13 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     case "invoice.paid": {
       const faktura = event.data.object;
       try {
-        const sub = faktura.subscription
-          ? await stripe.subscriptions.retrieve(faktura.subscription)
+        // Nyare API-versioner flyttade subscription-fältet till
+        // parent.subscription_details.subscription — kollar båda
+        // så att en Stripe-uppdatering inte tyst tappar bort vem
+        // som betalade och aldrig sätter kontot till Pro.
+        const subscriptionId = faktura.subscription || faktura.parent?.subscription_details?.subscription;
+        const sub = subscriptionId
+          ? await stripe.subscriptions.retrieve(subscriptionId)
           : null;
         const uid = sub?.metadata?.userId;
         const interval = sub?.items?.data?.[0]?.price?.recurring?.interval || "year";
