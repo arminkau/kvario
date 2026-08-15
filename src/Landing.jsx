@@ -22,7 +22,7 @@ const FORM = COUNTRIES.SE.forms.enskild;
    ============================================================ */
 
 
-export default function Landing({ onStart, onDemo }) {
+export default function Landing({ onStart }) {
   const [amount, setAmount] = useState(12000);
   const [rate, setRate] = useState(850);
   const [mode, setMode] = useState("business");
@@ -59,7 +59,6 @@ export default function Landing({ onStart, onDemo }) {
       <nav className="lpNav">
         <div className="brand"><h1>{MARKE}</h1></div>
         <div className="lpNavRight">
-          <button className="linkbtn" onClick={onDemo}>Testa utan konto</button>
           <button className="upgrade" onClick={onStart}>Logga in</button>
         </div>
       </nav>
@@ -200,7 +199,6 @@ export default function Landing({ onStart, onDemo }) {
 
       <footer className="lpFoot">
         <span>{ANSVAR}</span>
-        <button className="linkbtn" onClick={onDemo}>Se appen med exempeldata</button>
       </footer>
     </div>
   );

@@ -56,39 +56,6 @@ const pct = (n) => (n * 100).toFixed(1).replace(".", ",");
 
 const TRIAL_DAYS = 14;
 
-/* Färdigt konto med ett halvår inlagt. Används av "testa utan konto"
-   så att appen går att visa för någon utan att de registrerar sig. */
-export const DEMO_STATE = {
-  onboarded: true,
-  trialStart: Date.now() - 9 * 86400000,
-  villkor: { version: VILLKOR_VERSION, at: new Date().toISOString() },
-  countryCode: "SE",
-  form: "enskild",
-  invoices: [
-    { id: 1, client: "Nordkap Studio", amount: 284000, currency: "SEK", vat: 25, paid: true },
-    { id: 2, client: "Lehmann GmbH", amount: 24800, currency: "EUR", vat: 25, paid: true, typ: "eub2b" },
-    { id: 3, client: "Bergström Arkitekter", amount: 196000, currency: "SEK", vat: 25, paid: true },
-    { id: 4, client: "Vinter & Sund", amount: 148500, currency: "SEK", vat: 25, paid: true },
-    { id: 5, client: "Ravel & Co", amount: 172000, currency: "SEK", vat: 25, paid: false },
-    { id: 6, client: "Hallberg Media", amount: 96500, currency: "SEK", vat: 25, paid: false },
-  ],
-  costs: [
-    { id: 1, label: "Dator och skärm", amount: 32400, currency: "SEK", vat: 25 },
-    { id: 2, label: "Kontorsplats", amount: 42000, currency: "SEK", vat: 25 },
-    { id: 3, label: "Programvara", amount: 8900, currency: "SEK", vat: 25 },
-    { id: 4, label: "Företagsförsäkring", amount: 4200, currency: "SEK", vat: 25 },
-    { id: 5, label: "Redovisningskonsult", amount: 12000, currency: "SEK", vat: 25 },
-  ],
-  settingsMap: { SE: { kommunalskatt: 32.0, avgiftslage: "generell", pension: 0 } },
-  employees: [
-    { id: 1, name: "Elin Sandberg", monthly: 34000, fodelsear: 1994, vaxa: true },
-  ],
-  paidOnly: false,
-  hourlyRate: 950,
-  plan: "free",
-  setAside: 180000,
-};
-
 const DEFAULT_STATE = {
   onboarded: false,
   trialStart: null,
@@ -116,7 +83,6 @@ const delaToken = typeof window !== "undefined" ? new URLSearchParams(window.loc
 
 export default function KvarioApp() {
   const [view, setView] = useState("landing");
-  const [demo, setDemo] = useState(false);
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
@@ -221,18 +187,13 @@ export default function KvarioApp() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const userId = demo ? "demo" : session?.user?.id || null;
-  // Demoläget har ingen riktig användare — spara lokalt, aldrig i molnet.
-  const store = useMemo(() => makeStorage(demo ? null : userId), [userId, demo]);
+  const userId = session?.user?.id || null;
+  const store = useMemo(() => makeStorage(userId), [userId]);
 
   /* ---------- Ladda data och prenumeration ---------- */
   useEffect(() => {
     if (!authReady) return;
-    if (hasAuth && !demo && !userId) { setLoaded(true); return; }
-    // Demoläget sätter sitt state direkt i knappens onClick. Läser vi
-    // härifrån också hinner ett gammalt sparat state (t.ex. en avbruten
-    // onboarding) läsas in ovanpå det och tysta demot innan det syns.
-    if (demo) { setLoaded(true); return; }
+    if (hasAuth && !userId) { setLoaded(true); return; }
     let alive = true;
     (async () => {
       setLoaded(false);
@@ -240,7 +201,7 @@ export default function KvarioApp() {
         const r = await store.get(STORAGE_KEY);
         if (alive && r?.value) setState({ ...DEFAULT_STATE, ...JSON.parse(r.value) });
       } catch { /* inget sparat än */ }
-      if (hasAuth && userId && !demo) {
+      if (hasAuth && userId) {
         try {
           const s = await fetchSubscription(userId);
           if (alive) setSub(s);
@@ -253,7 +214,7 @@ export default function KvarioApp() {
       if (alive) setLoaded(true);
     })();
     return () => { alive = false; };
-  }, [authReady, userId, store, demo]);
+  }, [authReady, userId, store]);
 
   /* ---------- Spara ---------- */
   useEffect(() => {
@@ -285,8 +246,8 @@ export default function KvarioApp() {
   };
 
   useEffect(() => {
-    if (hasAuth && session?.user?.id && !demo) laddaDelningar();
-  }, [session?.user?.id, demo]);
+    if (hasAuth && session?.user?.id) laddaDelningar();
+  }, [session?.user?.id]);
 
   const skapaNyDelning = async () => {
     try {
@@ -534,9 +495,8 @@ export default function KvarioApp() {
 
   /* ---------- Checkout ----------
      Riktig betalning kräver ett riktigt konto — subscriptions har en
-     foreign key mot auth.users, så demo/utan-konto kan aldrig bli
-     en riktig Pro-rad i databasen. De faller tillbaka på simulerat
-     Pro lokalt, precis som när ingen server är konfigurerad. */
+     foreign key mot auth.users. Utan konto (t.ex. ingen Supabase
+     konfigurerad) faller det tillbaka på simulerat Pro lokalt. */
   const startCheckout = async () => {
     const ok = session?.user?.id
       ? await apiCheckout(session.user.id, billing, angerratt)
@@ -601,16 +561,13 @@ export default function KvarioApp() {
 
   if (!authReady) return <div className="kvar"><style>{CSS}</style><div className="wrap"><p className="empty">Ett ögonblick…</p></div></div>;
 
-  if (hasAuth && !session && !demo) {
+  if (hasAuth && !session) {
     if (view === "landing" && !authLinkError)
       return (
         <div className="kvar">
           <style>{CSS}</style>
           <SamtyckesRuta />
-          <Landing
-            onStart={() => setView("login")}
-            onDemo={() => { setDemo(true); setState({ ...DEMO_STATE }); }}
-          />
+          <Landing onStart={() => setView("login")} />
         </div>
       );
     return (
@@ -798,11 +755,6 @@ export default function KvarioApp() {
               </button>
             ) : (
               <button className="upgrade" onClick={() => setShowPaywall(true)}>Uppgradera</button>
-            )}
-            {demo && (
-              <button className="linkbtn" onClick={() => { setDemo(false); setView("landing"); setState(DEFAULT_STATE); }}>
-                Lämna demoläget
-              </button>
             )}
             {hasAuth && session && (
               <button className="linkbtn" onClick={signOut} title={session.user.email}>Logga ut</button>
@@ -1479,7 +1431,7 @@ export default function KvarioApp() {
           </div>
         </div>
 
-        {hasAuth && session && !demo && (
+        {hasAuth && session && (
           <div className="panel">
             <div className="panelHead">
               <h2>Dela med redovisningskonsult</h2>
@@ -1627,7 +1579,6 @@ export default function KvarioApp() {
           {" · "}<button className="linkbtn" onClick={() => setVisaPolicy((v) => !v)}>Integritetspolicy</button>
           {" · "}<button className="linkbtn" onClick={() => setVisaData((v) => !v)}>Din data</button>
           {state.villkor && <> · Godkända {new Date(state.villkor.at).toLocaleDateString("sv-SE")} (version {state.villkor.version})</>}
-          {demo && <> · Du tittar på exempeldata</>}
           {hasAuth && session && <> · Inloggad som {session.user.email}</>}
         </p>
       </div>
