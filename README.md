@@ -273,3 +273,72 @@ ligger i `src/texter.js`. Skattesatser och tröskelvärden ligger bara i
 
 Lägger du till en ny delad text, lägg den i `texter.js` och komplettera listan
 i `kontroll.mjs`.
+
+
+## Appen på mobilen
+
+Tre nivåer, från enklast till mest jobb.
+
+### 1. Installera från webbläsaren
+
+Webbversionen är en PWA. På telefonen: öppna adressen, välj "Lägg till på
+hemskärmen". Den får egen ikon, startar utan adressfält och laddar skalet från
+cache. Ingen app-butik, ingen granskning, ingen provision.
+
+Detta är den enda nivå som behövs för att det ska kännas som en app.
+
+### 2. APK att sidoladda
+
+En färdig APK byggs automatiskt vid varje push till `main`.
+
+1. Gå till repot på GitHub → fliken **Actions**
+2. Öppna senaste körningen av "Bygg Android-APK"
+3. Ladda ner artefakten `kvario-apk` längst ner
+4. Packa upp och flytta `app-debug.apk` till telefonen
+5. Öppna filen. Android frågar om appar från okänd källa — godkänn för
+   filhanteraren
+
+Den är signerad med Androids debug-nyckel. Det räcker för att installera
+själv, men inte för Google Play.
+
+### 3. App Store och Google Play
+
+`android/` och `ios/` är riktiga native-projekt, redo att öppnas:
+
+```
+npm run app:android    # öppnar Android Studio
+npm run app:ios        # öppnar Xcode, kräver Mac
+```
+
+Kvar att göra innan publicering:
+
+- **Utvecklarkonto.** Apple 99 USD/år, Google 25 USD en gång.
+- **Egen signeringsnyckel** för Play, i stället för debug-nyckeln.
+- **Räkna på Apples provision.** Apple kräver deras egen köpfunktion för
+  digitala abonnemang och tar 15–30 %. Av 99 kr blir det 15–30 kr. Hela
+  Stripe-flödet måste då dubbleras med Apples köp för iOS-användare.
+  Det är skälet till att PWA är förstahandsvalet så länge.
+
+### Hur appen laddar innehållet
+
+`capacitor.config.json` pekar mot den publicerade adressen i stället för att
+bunta med egna kopior av filerna. Tre skäl:
+
+1. Google tillåter inte inloggning via OAuth i en inbäddad webbvy. Laddas
+   appen från riktig adress sker inloggningen i systemets webbläsare.
+2. Betalservern släpper bara igenom anrop från `APP_URL`. En app som kör på
+   `capacitor://localhost` är ett annat ursprung och blockeras av CORS.
+3. Rättningar når användaren direkt, utan ny APK.
+
+Byt adress när domänen är på plats — ändra `server.url` i
+`capacitor.config.json` och kör `npm run app:synka`.
+
+### Ikoner
+
+```
+npm run ikoner
+```
+
+Ritar ikonen i alla storlekar som webben och Android behöver, från koden i
+`verktyg/rita-ikon.mjs`. Inget bildprogram behövs. Ändra motivet där och kör
+om, så uppdateras allt på en gång.

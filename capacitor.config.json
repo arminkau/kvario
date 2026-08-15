@@ -1,0 +1,12 @@
+{
+  "appId": "se.kvario.app",
+  "appName": "Kvario",
+  "webDir": "dist",
+  "server": {
+    "url": "https://kvario.vercel.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

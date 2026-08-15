@@ -1,0 +1,58 @@
+# ============================================================
+# Bygger en APK att sidoladda på egen telefon
+#
+# Kör automatiskt vid push till main, eller manuellt under
+# fliken Actions ("Run workflow"). Färdig fil hämtas som
+# artefakt längst ner på körningens sida.
+#
+# APK:n signeras med Androids debug-nyckel. Den går att
+# installera själv, men inte att lägga upp på Google Play —
+# dit krävs en egen uppladdningsnyckel, se README.
+# ============================================================
+
+name: Bygg Android-APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Installera beroenden
+        run: npm ci
+
+      - name: Bygg webbappen
+        run: npm run build
+
+      # Kopierar bygget och konfigurationen in i Android-projektet.
+      - name: Synka Capacitor
+        run: npx cap sync android
+
+      - name: Bygg APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Ladda upp APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kvario-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
