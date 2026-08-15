@@ -62,9 +62,9 @@ export const VILLKOR = [
     h: "7. Prenumeration och betalning",
     p: `Betalda funktioner debiteras i förskott per månad eller år via vår betalningsleverantör.
     Prenumerationen förnyas automatiskt tills du säger upp den. Du kan säga upp när som helst
-    och behåller tillgången till periodens slut. Konsumenter har ångerrätt enligt lag, men
-    ångerrätten upphör när du uttryckligen begärt att den digitala tjänsten ska levereras
-    omedelbart och tagit den i bruk.`,
+    och behåller tillgången till periodens slut. Konsumenter har 14 dagars ångerrätt från köpet.
+    Vi ber dig aldrig avsäga dig den — du behåller full ångerrätt även om du hunnit använda
+    tjänsten. Begäran om återbetalning gör du under Konto i appen.`,
   },
   {
     h: "8. Personuppgifter",
