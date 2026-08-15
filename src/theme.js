@@ -25,7 +25,7 @@ export const CSS = `
 .topRight{display:flex;align-items:center;gap:12px}
 .save{font-size:11px;color:var(--mist);min-width:64px;text-align:right}
 .save-error{color:var(--warn)}
-.badge{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 11px;border-radius:999px;background:var(--brass);color:#fff}
+.badge{font:inherit;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 11px;border-radius:999px;border:none;background:var(--brass);color:#fff;cursor:pointer}
 .upgrade{font:inherit;font-size:12.5px;font-weight:600;padding:6px 15px;border-radius:999px;border:1px solid var(--brass);background:transparent;color:var(--brass-dk);cursor:pointer}
 .upgrade:hover{background:var(--brass);color:#fff}
 

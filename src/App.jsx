@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
-import { startCheckout as apiCheckout, adminAterbetala } from "./billing";
+import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
 import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
@@ -543,14 +543,69 @@ export default function KvarioApp() {
 
   /* ---------- Checkout ----------
      Riktig betalning kräver ett riktigt konto — subscriptions har en
-     foreign key mot auth.users. Utan konto (t.ex. ingen Supabase
-     konfigurerad) faller det tillbaka på simulerat Pro lokalt. */
+     foreign key mot auth.users. Bara "unconfigured" (ingen server,
+     t.ex. lokal utveckling) faller tillbaka på simulerat Pro — ett
+     verkligt fel ska visas, aldrig ge gratis Pro tyst. */
+  const [checkoutFel, setCheckoutFel] = useState("");
   const startCheckout = async () => {
-    const ok = session?.user?.id
-      ? await apiCheckout(session.user.id, billing, angerratt)
-      : false;
-    if (!ok) patch({ plan: "pro" });
-    setShowPaywall(false);
+    setCheckoutFel("");
+    if (!session?.user?.id) { patch({ plan: "pro" }); setShowPaywall(false); return; }
+    const r = await apiCheckout(session.user.id, billing, angerratt);
+    if (r.ok) return; // sidan navigerar bort till Stripe nu
+    if (r.reason === "unconfigured") { patch({ plan: "pro" }); setShowPaywall(false); return; }
+    setCheckoutFel(r.message || "Kunde inte starta betalningen. Försök igen om en stund.");
+  };
+
+  /* ---------- Hantera prenumeration ----------
+     Uppsägning och kortbyte sköts av Stripes egen portal. Bygg
+     inte det själv. */
+  const hanteraPrenumeration = () => {
+    if (session?.user?.id) openPortal(session.user.id);
+  };
+
+  /* ---------- Begär återbetalning ----------
+     Kunden får själv skapa en rad — RLS tillåter bara insert på sin
+     egen (se schema.sql). Automatisk-flaggan är bara en signal till
+     adminpanelen om att begäran ligger inom den lagstadgade
+     14-dagarsfristen och bör godkännas utan vidare bedömning. */
+  const [showManage, setShowManage] = useState(false);
+  const [refundOrsak, setRefundOrsak] = useState("");
+  const [refundStatus, setRefundStatus] = useState("idle");
+  const [refundFel, setRefundFel] = useState("");
+  const [refundKlar, setRefundKlar] = useState(false);
+
+  const begarAterbetalning = async () => {
+    if (!session?.user?.id) return;
+    setRefundStatus("sending");
+    setRefundFel("");
+    try {
+      const { data: order, error: orderFel } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("betald_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (orderFel) throw orderFel;
+      if (!order) { setRefundFel("Hittar ingen betalning på ditt konto."); setRefundStatus("idle"); return; }
+
+      const inom14Dagar = order.betald_at
+        && (Date.now() - new Date(order.betald_at).getTime()) / 86400000 <= 14;
+      const automatisk = inom14Dagar && !order.angerratt_samtycke;
+
+      const { error } = await supabase.from("aterbetalningar").insert({
+        order_id: order.id,
+        user_id: session.user.id,
+        belopp_ore: order.belopp_ore - (order.aterbetalt_ore || 0),
+        orsak: refundOrsak.trim() || null,
+        automatisk,
+      });
+      if (error) throw error;
+      setRefundKlar(true);
+    } catch (e) {
+      setRefundFel("Kunde inte skicka begäran. Försök igen om en stund.");
+    }
+    setRefundStatus("idle");
   };
 
   const exportAllt = () => {
@@ -798,7 +853,7 @@ export default function KvarioApp() {
               {saveState === "saving" ? "Sparar…" : saveState === "saved" ? "Sparat" : saveState === "error" ? "Kunde inte spara" : ""}
             </span>
             {subscribed ? (
-              <span className="badge">Pro</span>
+              <button className="badge" onClick={() => setShowManage(true)}>Pro</button>
             ) : trial.active ? (
               <button className="trialBadge" onClick={() => setShowPaywall(true)}>
                 Pro · {trial.daysLeft} {trial.daysLeft === 1 ? "dag" : "dagar"} kvar
@@ -1681,6 +1736,8 @@ export default function KvarioApp() {
               </span>
             </label>
 
+            {checkoutFel && <p className="authError">{checkoutFel}</p>}
+
             <button className="add wide" onClick={startCheckout}>
               Fortsätt till betalning · {billing === "year" ? `${PLANS.pro.year} kr/år` : `${PLANS.pro.month} kr/mån`}
             </button>
@@ -1690,10 +1747,53 @@ export default function KvarioApp() {
               momsspecifikation via e-post direkt efter betalningen.
             </p>
             <p className="modalNote">
-              Kryssar du inte i rutan ovan behåller du full ångerrätt i 14 dagar. I den här
-              prototypen aktiveras Pro direkt utan betalning.
+              Kryssar du inte i rutan ovan behåller du full ångerrätt i 14 dagar — ångrar du dig
+              inom den tiden har du rätt till full återbetalning, även om du hunnit använda
+              tjänsten. Kryssar du i den gäller ångerrätten inte längre, men du kan ändå säga
+              upp prenumerationen när som helst.
             </p>
             <button className="linkbtn center" onClick={() => setShowPaywall(false)}>Inte nu</button>
+          </div>
+        </div>
+      )}
+
+      {/* HANTERA PRENUMERATION */}
+      {showManage && (
+        <div className="modalBg" onClick={() => { setShowManage(false); setRefundKlar(false); setRefundFel(""); setRefundOrsak(""); }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="eyebrow">Kvario Pro</div>
+            <h2>Hantera prenumeration</h2>
+
+            <button className="add wide" onClick={hanteraPrenumeration}>Uppsägning, kortbyte och kvitton</button>
+            <p className="modalNote">Öppnar Stripes egen sida i en ny flik.</p>
+
+            <div style={{ borderTop: "1px solid var(--line)", margin: "20px 0" }} />
+
+            {refundKlar ? (
+              <p className="modalLead">
+                Din begäran är mottagen. Ligger den inom 14 dagar och du inte avsagt dig
+                ångerrätten godkänns den normalt automatiskt — annars hör vi av oss.
+              </p>
+            ) : (
+              <>
+                <h3 style={{ margin: "0 0 8px" }}>Begär återbetalning</h3>
+                <p className="modalNote">
+                  Gäller din senaste betalning. Momsen justeras automatiskt i nästa
+                  momsdeklaration om begäran godkänns.
+                </p>
+                <textarea rows="3" placeholder="Anledning (frivilligt)" value={refundOrsak}
+                          onChange={(e) => setRefundOrsak(e.target.value)}
+                          style={{ width: "100%", marginTop: 8 }} />
+                {refundFel && <p className="authError">{refundFel}</p>}
+                <button className="farlig" style={{ marginTop: 10 }} onClick={begarAterbetalning} disabled={refundStatus === "sending"}>
+                  {refundStatus === "sending" ? "Skickar…" : "Skicka begäran"}
+                </button>
+              </>
+            )}
+
+            <button className="linkbtn center" onClick={() => { setShowManage(false); setRefundKlar(false); setRefundFel(""); setRefundOrsak(""); }}>
+              Stäng
+            </button>
           </div>
         </div>
       )}

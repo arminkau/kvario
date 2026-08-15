@@ -13,26 +13,28 @@
 const API = import.meta.env.VITE_API_URL;
 
 /* Skickar användaren till Stripe Checkout.
-   Returnerar false om ingen server är konfigurerad eller inget
-   userId finns, så att appen kan falla tillbaka på simulerat Pro
-   under utveckling / utan konto. */
+   reason "unconfigured" (ingen server/inget userId) är det enda läge
+   där appen ska falla tillbaka på simulerat Pro — det är till för
+   utveckling utan server. Ett verkligt fel ska visas som ett fel,
+   aldrig tystas ner till gratis Pro. */
 export async function startCheckout(userId, interval, angerratt = false) {
-  if (!API || !userId) return false;
+  if (!API || !userId) return { ok: false, reason: "unconfigured" };
   try {
     const r = await fetch(`${API}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, interval, angerratt }),
     });
-    const { url } = await r.json();
-    if (url) {
-      window.location.href = url;
-      return true;
+    const data = await r.json();
+    if (r.ok && data.url) {
+      window.location.href = data.url;
+      return { ok: true };
     }
+    return { ok: false, reason: "error", message: data.error };
   } catch (e) {
     console.error("Checkout misslyckades", e);
+    return { ok: false, reason: "error", message: e.message };
   }
-  return false;
 }
 
 /* Anropa vid start. Detta är sanningen om användarens plan. */
