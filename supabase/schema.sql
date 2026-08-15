@@ -135,6 +135,7 @@ create table if not exists public.orders (
   ordernummer        text unique not null,
   user_id            uuid references auth.users on delete set null,
   epost              text,
+  namn               text,
 
   -- Unik nyckel mot Stripe. Detta är idempotensen: Stripe skickar om
   -- webhooks vid timeout eller fel, och utan denna spärr skulle samma

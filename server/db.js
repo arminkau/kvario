@@ -39,7 +39,7 @@ export function momsdelar(bruttoOre, sats = MOMSSATS) {
 /* Returnerar { order, nyskapad }. Är nyskapad false har den här
    betalningen redan hanterats och inget mejl ska skickas igen. */
 export async function skapaOrder({
-  userId, epost, stripeInvoiceId, stripeCustomerId,
+  userId, epost, namn, stripeInvoiceId, stripeCustomerId,
   beloppOre, valuta, interval, betaldAt, periodSlut, angerratt,
 }) {
   if (!db) throw new Error("Databasen är inte konfigurerad");
@@ -61,6 +61,7 @@ export async function skapaOrder({
     ordernummer: nummer,
     user_id: uid,
     epost,
+    namn: namn || null,
     stripe_invoice_id: stripeInvoiceId,
     stripe_customer_id: stripeCustomerId,
     belopp_ore: beloppOre,

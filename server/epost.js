@@ -43,7 +43,7 @@ function momsdelar(bruttoOre, sats = 0.25) {
 }
 
 export function orderbekraftelseHtml({
-  ordernummer, epost, belopp, interval, betaldatum,
+  ordernummer, epost, namn, belopp, interval, betaldatum,
   periodSlut, angerrattSamtycke, fakturaUrl,
 }) {
   const m = momsdelar(belopp);
@@ -70,7 +70,7 @@ export function orderbekraftelseHtml({
     <tr><td style="padding:9px 0;border-top:1px solid #C6D3CD;color:#4A5D68">Betaldatum</td>
         <td align="right" style="padding:9px 0;border-top:1px solid #C6D3CD">${datum(betaldatum)}</td></tr>
     <tr><td style="padding:9px 0;border-top:1px solid #C6D3CD;color:#4A5D68">Beställare</td>
-        <td align="right" style="padding:9px 0;border-top:1px solid #C6D3CD">${epost}</td></tr>
+        <td align="right" style="padding:9px 0;border-top:1px solid #C6D3CD">${namn ? `${namn}<br><span style="color:#8698A1;font-size:12px">${epost}</span>` : epost}</td></tr>
   </table>
 </td></tr>
 
@@ -135,12 +135,12 @@ ${fakturaUrl ? `<tr><td style="padding:22px 32px 0">
 
 /* Textversion — vissa e-postklienter visar bara den, och det
    höjer chansen att brevet inte hamnar i skräpposten. */
-export function orderbekraftelseText({ ordernummer, belopp, interval, betaldatum, periodSlut }) {
+export function orderbekraftelseText({ ordernummer, namn, belopp, interval, betaldatum, periodSlut }) {
   const m = momsdelar(belopp);
   return `Tack för din beställning
 
 Ordernummer: ${ordernummer}
-Betaldatum: ${datum(betaldatum)}
+${namn ? `Beställare: ${namn}\n` : ""}Betaldatum: ${datum(betaldatum)}
 
 ${interval === "month" ? "Kvario Pro, månadsvis" : "Kvario Pro, årsvis"}
 Netto: ${kr(m.netto)} kr

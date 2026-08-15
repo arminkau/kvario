@@ -70,6 +70,14 @@ app.post("/checkout", express.json(), async (req, res) => {
     // leverans måste dokumenteras — utan det gäller 14 dagars
     // ångerrätt även efter att kunden börjat använda tjänsten.
     subscription_data: { metadata: { userId, angerratt: angerratt ? "ja" : "nej" } },
+    // Bara namnet, inte hela adressen — den räcker för kvittot och
+    // är den enda extra uppgiften som faktiskt behövs.
+    custom_fields: [{
+      key: "namn",
+      label: { type: "custom", custom: "Namn (till kvittot)" },
+      type: "text",
+      optional: false,
+    }],
     success_url: `${process.env.APP_URL}/?betalt=1`,
     cancel_url: `${process.env.APP_URL}/?avbruten=1`,
     allow_promotion_codes: true,
@@ -150,6 +158,19 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       await sattPlan(userId, "free");
       break;
     }
+    /* Namnet kommer via ett eget fält i Checkout (se /checkout), inte
+       via billing_address_collection — vi vill bara ha namnet, inte
+       hela adressen. Sparas på Stripe-kunden så att invoice.paid kan
+       läsa det direkt via faktura.customer_name. */
+    case "checkout.session.completed": {
+      const session = event.data.object;
+      const namn = session.custom_fields?.find((f) => f.key === "namn")?.text?.value;
+      if (namn && session.customer) {
+        try { await stripe.customers.update(session.customer, { name: namn }); }
+        catch (err) { console.error("Kunde inte spara namnet på kunden:", err); }
+      }
+      break;
+    }
     /* Orderbekräftelsen skickas här, inte från frontend.
        invoice.paid är det enda som säkert betyder att pengarna
        kommit fram. */
@@ -178,6 +199,7 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
         const { order, nyskapad } = await skapaOrder({
           userId: uid,
           epost: faktura.customer_email,
+          namn: faktura.customer_name || null,
           stripeInvoiceId: faktura.id,
           stripeCustomerId: faktura.customer,
           beloppOre: faktura.amount_paid,
@@ -199,6 +221,7 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
           await skickaOrderbekraftelse({
             ordernummer: order.ordernummer,
             epost: order.epost,
+            namn: order.namn,
             belopp: order.belopp_ore,
             interval,
             betaldatum: betaldAt,

@@ -108,8 +108,8 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
   }, [ordrar, kunder]);
 
   const exportera = () => {
-    const rader = [["Ordernummer", "E-post", "Datum", "Brutto", "Moms", "Aterbetalt", "Status"]];
-    ordrar.forEach((o) => rader.push([o.ordernummer, o.epost, (o.betald_at || "").slice(0, 10),
+    const rader = [["Ordernummer", "Namn", "E-post", "Datum", "Brutto", "Moms", "Aterbetalt", "Status"]];
+    ordrar.forEach((o) => rader.push([o.ordernummer, o.namn || "", o.epost, (o.betald_at || "").slice(0, 10),
       (o.belopp_ore / 100).toFixed(2), (o.moms_ore / 100).toFixed(2),
       ((o.aterbetalt_ore || 0) / 100).toFixed(2), o.status]));
     const blob = new Blob(["\uFEFF" + rader.map((r) => r.join(";")).join("\n")], { type: "text/csv" });
@@ -215,16 +215,16 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
       {/* ---------- ORDRAR ---------- */}
       {flik === "ordrar" && (
         <div className="adminPanel">
-          <input className="adminSok" placeholder="Sök på ordernummer eller e-post…" value={sok} onChange={(e) => setSok(e.target.value)} />
+          <input className="adminSok" placeholder="Sök på ordernummer, namn eller e-post…" value={sok} onChange={(e) => setSok(e.target.value)} />
           <table className="rTabell">
             <thead><tr><th>Order</th><th>Kund</th><th>Datum</th><th>Status</th><th className="h">Belopp</th><th></th></tr></thead>
             <tbody>
-              {filtrerade(ordrar, ["ordernummer", "epost"]).map((o) => {
+              {filtrerade(ordrar, ["ordernummer", "epost", "namn"]).map((o) => {
                 const kvarAtt = o.belopp_ore - (o.aterbetalt_ore || 0);
                 return (
                   <tr key={o.id}>
                     <td className="mono">{o.ordernummer}</td>
-                    <td>{o.epost}</td>
+                    <td>{o.namn ? <>{o.namn}<div className="dim">{o.epost}</div></> : o.epost}</td>
                     <td>{datum(o.betald_at)}</td>
                     <td>
                       <span className={`plantag ${o.status === "betald" ? "pro" : "gratis"}`}>
