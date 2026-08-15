@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
-import { startCheckout as apiCheckout } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription } from "./auth";
+import { startCheckout as apiCheckout, adminAterbetala } from "./billing";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -115,6 +115,9 @@ export default function KvarioApp() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
+  const [realAdmin, setRealAdmin] = useState(false);
+  const [adminData, setAdminData] = useState(null);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [state, setState] = useState(DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("idle");
@@ -161,7 +164,7 @@ export default function KvarioApp() {
   }, [state.trialStart, sub]);
 
   const subscribed = (sub?.plan || plan) === "pro";
-  const arAdmin = sub?.admin === true || demoAdmin;
+  const arAdmin = realAdmin || demoAdmin;
   const isPro = subscribed || trial.active;
   const settings = state.settingsMap[countryCode] || {};
   const patch = (p) => setState((s) => ({ ...s, ...p }));
@@ -224,6 +227,10 @@ export default function KvarioApp() {
           const s = await fetchSubscription(userId);
           if (alive) setSub(s);
         } catch { /* faller tillbaka på lokal provperiod */ }
+        try {
+          const a = await fetchAdmin(userId);
+          if (alive) setRealAdmin(a);
+        } catch { /* inte admin */ }
       }
       if (alive) setLoaded(true);
     })();
@@ -249,6 +256,52 @@ export default function KvarioApp() {
 
   const setSetting = (k, v) =>
     setState((s) => ({ ...s, settingsMap: { ...s.settingsMap, [countryCode]: { ...s.settingsMap[countryCode], [k]: v } } }));
+
+  /* ---------- Adminpanelens data ----------
+     RLS släpper igenom admins här (se ar_admin() i schema.sql), så
+     det går att fråga direkt från klienten — ingen serveromväg
+     behövs för att LÄSA. Bara återbetalningen kräver servern, för
+     att den pratar med Stripe. */
+  const laddaAdminData = async () => {
+    setAdminLoading(true);
+    try {
+      const [{ data: kunder }, { data: ordrar }, { data: aterbetalningar }] = await Promise.all([
+        supabase.rpc("admin_kunder"),
+        supabase.from("orders").select("*").order("betald_at", { ascending: false }).limit(500),
+        supabase.from("aterbetalningar").select("*").order("begard_at", { ascending: false }),
+      ]);
+      setAdminData({ kunder: kunder || [], ordrar: ordrar || [], aterbetalningar: aterbetalningar || [] });
+    } catch (e) {
+      console.error("Kunde inte hämta admindata", e);
+    }
+    setAdminLoading(false);
+  };
+
+  useEffect(() => {
+    if (realAdmin && !demoAdmin) laddaAdminData();
+  }, [realAdmin, demoAdmin]);
+
+  /* bekraftar kommer antingen från Ordrar-fliken ({order, belopp})
+     eller från Återbetalningar-fliken ({begaran, belopp}) — se
+     Admin.jsx. begaran har bara order_id, så ordernumret slås upp
+     mot ordrarna vi redan hämtat. */
+  const utforAterbetalning = async (bekraftar) => {
+    const ordernummer = bekraftar.order?.ordernummer
+      || adminData?.ordrar.find((o) => o.id === bekraftar.begaran?.order_id)?.ordernummer;
+    if (!ordernummer) return window.alert("Hittar inte ordern för den här återbetalningen.");
+    try {
+      await adminAterbetala({
+        accessToken: session.access_token,
+        ordernummer,
+        belopp: bekraftar.belopp / 100,
+        orsak: bekraftar.begaran?.orsak,
+        begaranId: bekraftar.begaran?.id,
+      });
+      await laddaAdminData();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  };
 
   /* ---------- Räkna ---------- */
   const d = useMemo(() => {
@@ -401,10 +454,15 @@ export default function KvarioApp() {
 
   const owed = (d.momsreg ? d.vatDue : 0) + (d.tax ? d.tax.owed : 0);
 
-  /* ---------- Checkout ---------- */
+  /* ---------- Checkout ----------
+     Riktig betalning kräver ett riktigt konto — subscriptions har en
+     foreign key mot auth.users, så demo/utan-konto kan aldrig bli
+     en riktig Pro-rad i databasen. De faller tillbaka på simulerat
+     Pro lokalt, precis som när ingen server är konfigurerad. */
   const startCheckout = async () => {
-    const ok = await apiCheckout(billing, angerratt);
-    // Utan konfigurerad server aktiveras Pro lokalt så att du kan testa vyerna.
+    const ok = session?.user?.id
+      ? await apiCheckout(session.user.id, billing, angerratt)
+      : false;
     if (!ok) patch({ plan: "pro" });
     setShowPaywall(false);
   };
@@ -496,14 +554,14 @@ export default function KvarioApp() {
       <div className="kvar">
         <style>{CSS}</style>
         <Admin
-          data={ADMIN_TESTDATA}
+          data={demoAdmin ? ADMIN_TESTDATA : (adminData || { kunder: [], ordrar: [], aterbetalningar: [] })}
           epost={session?.user?.email}
           onStang={() => { setDemoAdmin(false); signOut(); }}
-          onAterbetala={() => window.alert(
-            "I prototypen görs ingen riktig återbetalning.\n\nI skarp drift anropas /api/admin/aterbetala som gör återbetalningen hos Stripe, loggar den i databasen och mejlar kunden."
-          )}
+          onAterbetala={demoAdmin
+            ? () => window.alert("Demoläge — ingen riktig återbetalning görs. Logga in som en riktig admin för att testa på riktigt.")
+            : utforAterbetalning}
           onUtskick={() => window.alert(
-            "I prototypen skickas inget.\n\nI skarp drift anropas /api/admin/utskick som skickar via Resend till valda mottagare."
+            "Utskick kräver Resend, som väntar på din domän. Sätt RESEND_API_KEY och de övriga e-postvariablerna på servern när den är klar — se README."
           )}
         />
       </div>
@@ -990,7 +1048,7 @@ export default function KvarioApp() {
                 <Info id="marg" open={openInfo} setOpen={setOpenInfo} />
               <span className="eyebrow">{openChart === "marg" ? "Dölj" : "Visa diagram"}</span>
             </button>
-            <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen av egenavgifterna som tar slut, den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
+            <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen av egenavgifterna som tar slut, och den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
             {!isPro && openChart === "marg" && (
               <div className="lockOverlay"><div>
                 <div className="eyebrow">{trial.ended ? "Fanns i din provperiod" : "Ingår i Pro"}</div>

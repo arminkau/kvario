@@ -78,3 +78,16 @@ export async function fetchSubscription(userId) {
   if (error) throw error;
   return data;
 }
+
+/* ---------- Adminroll ----------
+   Ligger i en egen tabell (roller), inte i subscriptions — se
+   schema.sql. Användaren får bara läsa sin egen rad. */
+export async function fetchAdmin(userId) {
+  const { data, error } = await supabase
+    .from("roller")
+    .select("admin")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.admin === true;
+}

@@ -17,18 +17,38 @@ import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
 import { skickaOrderbekraftelse } from "./epost.js";
-import { skapaOrder, markeraAterbetald, hamtaOrder, sattPlan, db } from "./db.js";
+import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db } from "./db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const app = express();
 app.use(cors({ origin: process.env.APP_URL || "http://localhost:5173" }));
 
-/* Byt ut mot din riktiga databas. Nyckeln är användarens id. */
-const users = new Map(); // userId -> { email, customerId, plan, renewsAt }
+/* Kundens Stripe-id och plan läses från subscriptions, inte från
+   minnet i processen. En in-memory Map nollställs vid varje omstart
+   (vanligt på Railways gratisnivå) — utan detta skulle varje omstart
+   ge nya, dubbla Stripe-kunder för samma person. */
 
-/* Löpnumret ligger i databasen och hämtas atomiskt. Se db.js. */
+/* ---------- Adminbehörighet ----------
+   Två vägar in: ADMIN_TOKEN för curl/manuellt bruk (se README), eller
+   en inloggad admins egen Supabase-session för adminpanelen i appen.
+   Panelen kan aldrig få ADMIN_TOKEN — den ligger bara i webbläsaren
+   och skulle kunna läsas ut av vem som helst som öppnar konsolen. */
+async function arAdminSession(req) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token || !db) return false;
+  const { data, error } = await db.auth.getUser(token);
+  if (error || !data?.user) return false;
+  const { data: roll } = await db.from("roller").select("admin").eq("user_id", data.user.id).maybeSingle();
+  return roll?.admin === true;
+}
 
-const getUser = (id) => users.get(id) || { plan: "free" };
+async function kravAdmin(req, res) {
+  if (req.headers["x-admin-token"] === process.env.ADMIN_TOKEN) return true;
+  if (await arAdminSession(req)) return true;
+  res.status(401).json({ error: "Obehörig" });
+  return false;
+}
 
 
 /* ---------- 1. Starta betalning ----------
@@ -39,21 +59,22 @@ app.post("/checkout", express.json(), async (req, res) => {
   if (!userId) return res.status(400).json({ error: "userId saknas" });
 
   try {
-    let user = getUser(userId);
+    const kund = await hamtaKund(userId);
+    let customerId = kund?.stripe_customer_id;
 
     // Återanvänd kunden om personen redan handlat, annars skapa en ny.
-    if (!user.customerId) {
+    if (!customerId) {
       const customer = await stripe.customers.create({
         email,
         metadata: { userId },
       });
-      user = { ...user, email, customerId: customer.id };
-      users.set(userId, user);
+      customerId = customer.id;
+      await sattStripeKund(userId, customerId);
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      customer: user.customerId,
+      customer: customerId,
       line_items: [{
         price: interval === "month" ? process.env.PRICE_MONTH : process.env.PRICE_YEAR,
         quantity: 1,
@@ -105,12 +126,6 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     case "customer.subscription.updated": {
       if (!userId) break;
       const active = ["active", "trialing"].includes(sub.status);
-      users.set(userId, {
-        ...getUser(userId),
-        plan: active ? "pro" : "free",
-        subscriptionId: sub.id,
-        renewsAt: new Date(sub.current_period_end * 1000).toISOString(),
-      });
       await sattPlan(userId, active ? "pro" : "free", {
         current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
       });
@@ -118,7 +133,6 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     }
     case "customer.subscription.deleted": {
       if (!userId) break;
-      users.set(userId, { ...getUser(userId), plan: "free", subscriptionId: null });
       await sattPlan(userId, "free");
       break;
     }
@@ -206,9 +220,9 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
    Frontend frågar denna vid inloggning. Planen får aldrig komma
    från klienten — det är hela poängen med betalväggen. */
 
-app.get("/me/:userId", (req, res) => {
-  const u = getUser(req.params.userId);
-  res.json({ plan: u.plan, renewsAt: u.renewsAt || null });
+app.get("/me/:userId", async (req, res) => {
+  const kund = await hamtaKund(req.params.userId);
+  res.json({ plan: kund?.plan || "free", renewsAt: kund?.current_period_end || null });
 });
 
 
@@ -217,11 +231,11 @@ app.get("/me/:userId", (req, res) => {
    Bygg inte det själv. */
 
 app.post("/portal", express.json(), async (req, res) => {
-  const u = getUser(req.body.userId);
-  if (!u.customerId) return res.status(400).json({ error: "Ingen kund" });
+  const kund = await hamtaKund(req.body.userId);
+  if (!kund?.stripe_customer_id) return res.status(400).json({ error: "Ingen kund" });
 
   const session = await stripe.billingPortal.sessions.create({
-    customer: u.customerId,
+    customer: kund.stripe_customer_id,
     return_url: process.env.APP_URL,
   });
   res.json({ url: session.url });
@@ -234,11 +248,9 @@ app.post("/portal", express.json(), async (req, res) => {
    ska kunna göra återbetalningar. */
 
 app.post("/admin/aterbetala", express.json(), async (req, res) => {
-  if (req.headers["x-admin-token"] !== process.env.ADMIN_TOKEN) {
-    return res.status(401).json({ error: "Obehörig" });
-  }
+  if (!(await kravAdmin(req, res))) return;
 
-  const { ordernummer, belopp, orsak } = req.body;
+  const { ordernummer, belopp, orsak, begaranId } = req.body;
   try {
     const order = await hamtaOrder(ordernummer);
     if (!order) return res.status(404).json({ error: "Ordern finns inte" });
@@ -264,6 +276,14 @@ app.post("/admin/aterbetala", express.json(), async (req, res) => {
     // direkt så att svaret till dig blir korrekt på en gång.
     const uppdaterad = await markeraAterbetald(order.stripe_invoice_id, summa, orsak);
 
+    // Godkänns en begäran från Återbetalningar-fliken, stäng den —
+    // annars ligger den kvar som "Väntar" trots att den är klar.
+    if (begaranId && db) {
+      await db.from("aterbetalningar")
+        .update({ status: "genomford", hanterad_at: new Date().toISOString() })
+        .eq("id", begaranId);
+    }
+
     res.json({ ok: true, refundId: refund.id, order: uppdaterad });
   } catch (err) {
     console.error(err);
@@ -273,9 +293,7 @@ app.post("/admin/aterbetala", express.json(), async (req, res) => {
 
 /* Lista ordrar — enkel översikt utan att behöva öppna Stripe. */
 app.get("/admin/ordrar", async (req, res) => {
-  if (req.headers["x-admin-token"] !== process.env.ADMIN_TOKEN) {
-    return res.status(401).json({ error: "Obehörig" });
-  }
+  if (!(await kravAdmin(req, res))) return;
   const { data, error } = await db
     .from("orders").select("*").order("betald_at", { ascending: false }).limit(100);
   if (error) return res.status(500).json({ error: error.message });

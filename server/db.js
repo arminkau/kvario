@@ -121,3 +121,21 @@ export async function sattPlan(userId, plan, extra = {}) {
     { onConflict: "user_id" }
   );
 }
+
+/* Kundens rad i subscriptions — bland annat stripe_customer_id,
+   så att servern kan starta om utan att glömma vem som redan är kund. */
+export async function hamtaKund(userId) {
+  if (!db || !userId) return null;
+  const { data } = await db.from("subscriptions").select("*").eq("user_id", userId).maybeSingle();
+  return data;
+}
+
+/* Sätter bara stripe_customer_id — rör aldrig plan. Kunden kan
+   redan ha en rad från signup-triggern, eller sakna en helt. */
+export async function sattStripeKund(userId, customerId) {
+  if (!db || !userId) return;
+  await db.from("subscriptions").upsert(
+    { user_id: userId, stripe_customer_id: customerId, updated_at: new Date().toISOString() },
+    { onConflict: "user_id" }
+  );
+}

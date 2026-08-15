@@ -238,3 +238,28 @@ create policy "begär egen återbetalning" on public.aterbetalningar
   for insert with check (auth.uid() = user_id);
 
 create index if not exists aterbet_status_idx on public.aterbetalningar (status, begard_at desc);
+
+
+-- ============================================================
+-- 8. Kundlista för adminpanelen
+-- ============================================================
+
+-- subscriptions har inget e-postfält — det ligger bara i auth.users,
+-- som klienten aldrig får läsa direkt. Den här funktionen gör det
+-- enda undantaget: en admin får se e-post ihopkopplat med plan och
+-- provperiod, aldrig lösenord eller annat från auth.users.
+create or replace function public.admin_kunder()
+returns table (
+  user_id uuid,
+  epost text,
+  plan text,
+  trial_start timestamptz,
+  current_period_end timestamptz,
+  stripe_customer_id text
+)
+language sql stable security definer set search_path = public as $$
+  select s.user_id, u.email, s.plan, s.trial_start, s.current_period_end, s.stripe_customer_id
+  from public.subscriptions s
+  join auth.users u on u.id = s.user_id
+  where public.ar_admin();
+$$;
