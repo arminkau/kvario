@@ -64,15 +64,21 @@ function skrivPng(bredd, hojd, pixlar) {
 
 /* maskable = true används för adaptiva ikoner och Androids
    foreground-lager: systemet beskär till cirkel eller squircle, så
-   motivet krymps och hörnen lämnas raka. */
-export function ritaIkon(storlek, maskable) {
+   motivet krymps och hörnen lämnas raka.
+
+   egenMarginal går att skicka med när beskärningen är känd och
+   mindre aggressiv. En profilbild beskärs till cirkel, som behåller
+   ungefär 70 procent av bredden — då blir maskable-marginalen på
+   29 procent alldeles för tilltagen och märket ser borttappat ut. */
+export function ritaIkon(storlek, maskable, egenMarginal = null) {
   const px = new Uint8Array(storlek * storlek * 4);
   const satt = (x, y, [r, g, b], a = 255) => {
     const i = (y * storlek + x) * 4;
     px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = a;
   };
 
-  const marginal = maskable ? storlek * 0.29 : storlek * 0.17;
+  const andel = egenMarginal ?? (maskable ? 0.29 : 0.17);
+  const marginal = storlek * andel;
   const radie = maskable ? 0 : storlek * 0.22;
   const inner = storlek - marginal * 2;
 

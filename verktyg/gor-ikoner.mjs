@@ -27,3 +27,12 @@ for (const [namn, storlek, maskable] of filer) {
   writeFileSync(join(UT, namn), ritaIkon(storlek, maskable));
   console.log("skrev", namn, storlek + "px");
 }
+
+/* Profilbild för sociala medier. Facebook och Instagram beskär till
+   cirkel. Hörnen lämnas därför raka, och marginalen sätts till 16
+   procent: med maskable-marginalen på 29 blir märket så litet att
+   det tappas bort i en liten avatar, medan 14 gör att cirkeln
+   nyper av översta bandets hörn. 1024 px räcker överallt. */
+mkdirSync(join(UT, "logo"), { recursive: true });
+writeFileSync(join(UT, "logo", "kvario-profilbild-1024.png"), ritaIkon(1024, true, 0.16));
+console.log("skrev logo/kvario-profilbild-1024.png 1024px");
