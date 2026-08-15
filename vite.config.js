@@ -3,6 +3,13 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  server: {
+    watch: {
+      /* android/ och ios/ innehåller kopior av dist efter cap sync.
+         Utan detta laddar dev-servern om varje gång de skrivs. */
+      ignored: ["**/android/**", "**/ios/**", "**/dist/**"],
+    },
+  },
   plugins: [
     react(),
     /* Gör webbversionen installerbar på hemskärmen och startbar utan

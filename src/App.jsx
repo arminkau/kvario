@@ -526,9 +526,13 @@ export default function KvarioApp() {
   const remainder = Math.max(0, total - shown);
   const barTotal = Math.max(1, total);
 
-  /* ---------- Åtgärder ---------- */
-  const [inv, setInv] = useState({ client: "", amount: "", vat: 25, currency: "SEK", typ: "se", recurring: false });
-  const [cost, setCost] = useState({ label: "", amount: "", vat: 25, currency: "SEK", recurring: false });
+  /* ---------- Åtgärder ----------
+     Datum förifylls med dagens och går att ändra. Utan datum går
+     varken momsperiod eller årsjämförelse att räkna fram, och äldre
+     poster utan datum räknas som innevarande år. */
+  const idag = () => new Date().toISOString().slice(0, 10);
+  const [inv, setInv] = useState({ client: "", amount: "", vat: 25, currency: "SEK", typ: "se", recurring: false, datum: idag() });
+  const [cost, setCost] = useState({ label: "", amount: "", vat: 25, currency: "SEK", recurring: false, datum: idag() });
   const [emp, setEmp] = useState({ name: "", monthly: "", fodelsear: "", vaxa: false });
 
   const addEmployee = () => {
@@ -559,13 +563,13 @@ export default function KvarioApp() {
     if (atLimit) return setShowPaywall(true);
     const a = parseFloat(String(inv.amount).replace(",", "."));
     if (!inv.client.trim() || !a || a <= 0) return;
-    patch({ invoices: [...invoices, { id: Date.now(), client: inv.client.trim(), amount: a, currency: inv.currency, vat: +inv.vat, paid: false, recurring: !!inv.recurring }] });
+    patch({ invoices: [...invoices, { id: Date.now(), client: inv.client.trim(), amount: a, currency: inv.currency, vat: +inv.vat, paid: false, recurring: !!inv.recurring, datum: inv.datum || idag() }] });
     setInv({ ...inv, client: "", amount: "" });
   };
   const addCost = () => {
     const a = parseFloat(String(cost.amount).replace(",", "."));
     if (!cost.label.trim() || !a || a <= 0) return;
-    patch({ costs: [...costs, { id: Date.now(), label: cost.label.trim(), amount: a, currency: cost.currency, vat: +cost.vat, recurring: !!cost.recurring }] });
+    patch({ costs: [...costs, { id: Date.now(), label: cost.label.trim(), amount: a, currency: cost.currency, vat: +cost.vat, recurring: !!cost.recurring, datum: cost.datum || idag() }] });
     setCost({ ...cost, label: "", amount: "" });
   };
 
@@ -1588,6 +1592,8 @@ export default function KvarioApp() {
                   {country.vatRates.map((r) => <option key={r} value={r}>{r} %</option>)}
                 </select>
               )}
+              <input className="w130" type="date" value={inv.datum} title="Fakturadatum"
+                     onChange={(e) => setInv({ ...inv, datum: e.target.value })} />
               <label className="vaxaVal" title="Läggs till igen med ett klick varje ny månad">
                 <input type="checkbox" checked={inv.recurring}
                        onChange={(e) => setInv({ ...inv, recurring: e.target.checked })} />
@@ -1628,6 +1634,8 @@ export default function KvarioApp() {
                       title={d.momsreg ? "Momssats" : "Momssats på inköpet — räknas som kostnad"}>
                 {country.vatRates.map((r) => <option key={r} value={r}>{r} %</option>)}
               </select>
+              <input className="w130" type="date" value={cost.datum} title="Inköpsdatum"
+                     onChange={(e) => setCost({ ...cost, datum: e.target.value })} />
               <label className="vaxaVal" title="Läggs till igen med ett klick varje ny månad">
                 <input type="checkbox" checked={cost.recurring}
                        onChange={(e) => setCost({ ...cost, recurring: e.target.checked })} />

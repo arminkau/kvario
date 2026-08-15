@@ -33,7 +33,23 @@ export const RAPPORTER = [
     namn: "Momsunderlag",
     beskrivning: "Utgående och ingående moms uppdelat per momssats.",
   },
+  {
+    id: "kunder",
+    namn: "Resultat per kund",
+    beskrivning: "Vilka kunder som står för intäkterna, och hur beroende du är av den största.",
+  },
+  {
+    id: "perioder",
+    namn: "Period för period",
+    beskrivning: "Månad och kvartal jämfört, så att säsong och utveckling syns.",
+  },
 ];
+
+/* Poster utan datum är inlagda innan datumfältet fanns. De räknas
+   till innevarande år men hamnar utanför periodindelningen, i
+   stället för att gissas in i en månad de kanske inte hör hemma i. */
+const period = (x) => (x.datum ? String(x.datum).slice(0, 7) : null);
+const arAv = (x) => (x.datum ? Number(String(x.datum).slice(0, 4)) : null);
 
 function Rad({ etikett, belopp, not, stark, negativ }) {
   return (
@@ -77,6 +93,53 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
     momsPerSats[k].in += iSek(c) * (c.vat / 100);
   });
   const satser = Object.keys(momsPerSats).map(Number).sort((a, b) => b - a);
+
+  /* ---------- Per kund ----------
+     Beloppen är exklusive moms, alltså det som faktiskt är intäkt.
+     Obetalt särredovisas — en stor kund som inte betalar är en helt
+     annan sak än en stor kund som gör det. */
+  const perKund = {};
+  invoices.forEach((i) => {
+    const namn = i.client || "Namnlös";
+    perKund[namn] = perKund[namn] || { namn, belopp: 0, antal: 0, obetalt: 0 };
+    perKund[namn].belopp += iSek(i);
+    perKund[namn].antal++;
+    if (!i.paid) perKund[namn].obetalt += iSek(i);
+  });
+  const summaKund = Object.values(perKund).reduce((s, k) => s + k.belopp, 0);
+  const kunder = Object.values(perKund)
+    .map((k) => ({ ...k, andel: summaKund ? (k.belopp / summaKund) * 100 : 0 }))
+    .sort((a, b) => b.belopp - a.belopp);
+
+  /* ---------- Per månad och år ---------- */
+  const perManad = {};
+  const perAr = {};
+  let utanDatum = 0;
+
+  const bokfor = (x, falt) => {
+    const p = period(x);
+    if (!p) { if (falt === "intakt") utanDatum++; return; }
+    perManad[p] = perManad[p] || { k: p, intakt: 0, kostnad: 0, antal: 0 };
+    perManad[p][falt] += iSek(x);
+    if (falt === "intakt") perManad[p].antal++;
+
+    const a = arAv(x);
+    perAr[a] = perAr[a] || { ar: a, intakt: 0, kostnad: 0, antal: 0 };
+    perAr[a][falt] += iSek(x);
+    if (falt === "intakt") perAr[a].antal++;
+  };
+  invoices.forEach((i) => bokfor(i, "intakt"));
+  costs.forEach((c) => bokfor(c, "kostnad"));
+
+  const manadsnamn = (k) => {
+    const [ar, m] = k.split("-");
+    return new Date(Number(ar), Number(m) - 1, 1)
+      .toLocaleDateString("sv-SE", { month: "long", year: "numeric" });
+  };
+  const manader = Object.values(perManad)
+    .sort((a, b) => a.k.localeCompare(b.k))
+    .map((m) => ({ ...m, namn: manadsnamn(m.k) }));
+  const arsrader = Object.values(perAr).sort((a, b) => a.ar - b.ar);
 
   const rubrik = RAPPORTER.find((r) => r.id === typ)?.namn || "Rapport";
   const formNamn = form?.name || "";
@@ -202,34 +265,36 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
             <h2>Fakturor</h2>
             <table className="rTabell">
               <thead>
-                <tr><th>Kund</th><th>Belopp</th><th>Valuta</th><th>Moms</th><th>Status</th><th className="h">I SEK</th></tr>
+                <tr><th>Datum</th><th>Kund</th><th>Belopp</th><th>Valuta</th><th>Moms</th><th>Status</th><th className="h">I SEK</th></tr>
               </thead>
               <tbody>
                 {invoices.map((i) => (
                   <tr key={i.id}>
+                    <td>{i.datum || "—"}</td>
                     <td>{i.client}</td><td>{kr(i.amount)}</td><td>{i.currency}</td>
                     <td>{i.vat} %</td><td>{i.paid ? "Betald" : "Obetald"}</td>
                     <td className="h">{kr(iSek(i))} kr</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan="5">Summa exklusive moms</td><td className="h">{kr(d.revenue)} kr</td></tr></tfoot>
+              <tfoot><tr><td colSpan="6">Summa exklusive moms</td><td className="h">{kr(d.revenue)} kr</td></tr></tfoot>
             </table>
           </section>
 
           <section>
             <h2>Kostnader</h2>
             <table className="rTabell">
-              <thead><tr><th>Vad</th><th>Belopp</th><th>Valuta</th><th>Moms</th><th className="h">I SEK</th></tr></thead>
+              <thead><tr><th>Datum</th><th>Vad</th><th>Belopp</th><th>Valuta</th><th>Moms</th><th className="h">I SEK</th></tr></thead>
               <tbody>
                 {costs.map((c) => (
                   <tr key={c.id}>
+                    <td>{c.datum || "—"}</td>
                     <td>{c.label}</td><td>{kr(c.amount)}</td><td>{c.currency}</td>
                     <td>{c.vat} %</td><td className="h">{kr(iSek(c))} kr</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan="4">Summa exklusive moms</td><td className="h">{kr(d.costBase)} kr</td></tr></tfoot>
+              <tfoot><tr><td colSpan="5">Summa exklusive moms</td><td className="h">{kr(d.costBase)} kr</td></tr></tfoot>
             </table>
           </section>
 
@@ -306,13 +371,134 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
         </section>
       )}
 
+      {/* ---------- RESULTAT PER KUND ---------- */}
+      {typ === "kunder" && (
+        <section>
+          <h2>Resultat per kund</h2>
+          <Forklaring>
+            Vad varje kund faktiskt dragit in, exklusive moms. Sorterat efter storlek.
+            Andelen är värd att titta på: står en enda kund för mer än halva omsättningen
+            är det inte en kund, det är en arbetsgivare — och en risk om den försvinner.
+          </Forklaring>
+
+          {kunder.length === 0 && <Forklaring>Inga fakturor inlagda än.</Forklaring>}
+
+          {kunder.length > 0 && (
+            <>
+              <table className="rTabell">
+                <thead>
+                  <tr><th>Kund</th><th>Fakturor</th><th>Varav obetalt</th><th>Andel</th><th className="h">Exkl. moms</th></tr>
+                </thead>
+                <tbody>
+                  {kunder.map((k) => (
+                    <tr key={k.namn}>
+                      <td>{k.namn}</td>
+                      <td>{k.antal}</td>
+                      <td>{k.obetalt > 0 ? `${kr(k.obetalt)} kr` : "—"}</td>
+                      <td>{Math.round(k.andel)} %</td>
+                      <td className="h">{kr(k.belopp)} kr</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr><td colSpan="4">Summa</td><td className="h">{kr(d.revenue)} kr</td></tr>
+                </tfoot>
+              </table>
+
+              {kunder[0] && kunder[0].andel > 50 && (
+                <Forklaring>
+                  <b>{kunder[0].namn} står för {Math.round(kunder[0].andel)} % av omsättningen.</b>{" "}
+                  Vid den koncentrationen kan Skatteverket i vissa fall ifrågasätta om det
+                  är näringsverksamhet eller förtäckt anställning. Det är också en ren
+                  affärsrisk — faller den kunden bort faller det mesta.
+                </Forklaring>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {/* ---------- PERIOD FÖR PERIOD ---------- */}
+      {typ === "perioder" && (
+        <section>
+          <h2>Period för period</h2>
+          <Forklaring>
+            Fakturerat och inköpt per månad, efter datumen du lagt in. Säsongsvariation
+            syns här — och den är skälet att vara försiktig med årsprognosen, som antar
+            att resten av året liknar det som gått.
+          </Forklaring>
+
+          {manader.length === 0 ? (
+            <Forklaring>
+              Inga poster med datum än. Datum fylls i när du lägger till en faktura eller
+              kostnad; äldre poster saknar det och räknas därför inte med här.
+            </Forklaring>
+          ) : (
+            <>
+              <table className="rTabell">
+                <thead>
+                  <tr><th>Månad</th><th>Fakturor</th><th>Intäkt</th><th>Kostnader</th><th className="h">Netto</th></tr>
+                </thead>
+                <tbody>
+                  {manader.map((m) => (
+                    <tr key={m.k}>
+                      <td>{m.namn}</td>
+                      <td>{m.antal}</td>
+                      <td>{kr(m.intakt)} kr</td>
+                      <td>{kr(m.kostnad)} kr</td>
+                      <td className="h">{kr(m.intakt - m.kostnad)} kr</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan="2">Summa</td>
+                    <td>{kr(manader.reduce((s, m) => s + m.intakt, 0))} kr</td>
+                    <td>{kr(manader.reduce((s, m) => s + m.kostnad, 0))} kr</td>
+                    <td className="h">{kr(manader.reduce((s, m) => s + m.intakt - m.kostnad, 0))} kr</td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              {utanDatum > 0 && (
+                <Forklaring>
+                  {utanDatum} {utanDatum === 1 ? "post saknar" : "poster saknar"} datum och
+                  ingår inte i tabellen ovan. De räknas däremot med i alla andra siffror.
+                </Forklaring>
+              )}
+
+              {arsrader.length > 1 && (
+                <>
+                  <h2 style={{ marginTop: 26 }}>År mot år</h2>
+                  <table className="rTabell">
+                    <thead>
+                      <tr><th>År</th><th>Fakturor</th><th>Intäkt</th><th>Kostnader</th><th className="h">Netto</th></tr>
+                    </thead>
+                    <tbody>
+                      {arsrader.map((a) => (
+                        <tr key={a.ar}>
+                          <td>{a.ar}</td>
+                          <td>{a.antal}</td>
+                          <td>{kr(a.intakt)} kr</td>
+                          <td>{kr(a.kostnad)} kr</td>
+                          <td className="h">{kr(a.intakt - a.kostnad)} kr</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
       <footer className="rFot">
         <p>
-          <b>Detta är inte skatterådgivning.</b> {ANSVAR}
-          Siffrorna är uppskattningar för inkomstår 2026 och innehåller förenklingar — grundavdrag
-          och jobbskatteavdrag är approximerade, och räntefördelning, periodiseringsfond och
-          expansionsfond ingår inte. Stäm av mot Skatteverket eller din redovisningskonsult innan
-          du använder underlaget för deklaration eller bokföring.
+          <b>Detta är inte skatterådgivning.</b> {ANSVAR}{" "}
+          {d.tax?.caveat || "Siffrorna är uppskattningar och innehåller förenklingar."}{" "}
+          Stäm av mot Skatteverket eller din redovisningskonsult innan du använder underlaget
+          för deklaration eller bokföring.
         </p>
         <p className="rSid">{MARKE} · {datum()}</p>
       </footer>
