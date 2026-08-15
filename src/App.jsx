@@ -13,7 +13,7 @@ import { TESTKONTON, ADMIN_TESTDATA } from "./testdata";
 import { VILLKOR, VILLKOR_VERSION } from "./villkor";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
 import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER } from "./tax";
-import { Loneoptimeraren, Brytpunkten, Marginalkurvan } from "./Charts.jsx";
+import { Marginalkurvan } from "./Charts.jsx";
 import Landing from "./Landing.jsx";
 
 /* ============================================================
@@ -201,7 +201,8 @@ export default function KvarioApp() {
   }, []);
 
   const userId = demo ? "demo" : session?.user?.id || null;
-  const store = useMemo(() => makeStorage(userId), [userId]);
+  // Demoläget har ingen riktig användare — spara lokalt, aldrig i molnet.
+  const store = useMemo(() => makeStorage(demo ? null : userId), [userId, demo]);
 
   /* ---------- Ladda data och prenumeration ---------- */
   useEffect(() => {
@@ -529,24 +530,9 @@ export default function KvarioApp() {
             <div className="brand"><h1>{MARKE}</h1></div>
             <h2 className="obTitle">Ett sista steg</h2>
             <p className="obLead">
-              Välj företagsform så ställer vi in beräkningarna efter dina regler.
-              Du kan byta när som helst.
+              Kvario är byggt för enskild firma. Vinsten är din inkomst, ett
+              skattesteg — enkelt att se, enkelt att lita på.
             </p>
-
-            {country.forms && (
-              <div className="obForm">
-                <div className="eyebrow">Företagsform</div>
-                <div className="obFormList">
-                  {Object.values(country.forms).map((f) => (
-                    <button key={f.id} className="obOpt" data-on={state.form === f.id}
-                            onClick={() => patch({ form: f.id })}>
-                      <span className="obName">{f.name}</span>
-                      <span className="obMeta">{f.blurb}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <p className="obTrial">
               Du får <b>{TRIAL_DAYS} dagar med Kvario Pro</b> direkt — allt upplåst,
@@ -799,7 +785,7 @@ export default function KvarioApp() {
                   <Info id="marginal" open={openInfo} setOpen={setOpenInfo} />
               <span className="eyebrow">Marginalskatt {pct(d.tax.marginal)} %</span>
             </div>
-            <InfoBox id="marginal" open={openInfo}>Prislappen är sällan din verkliga kostnad. Ett företagsköp sänker vinsten, och med den allt som beräknas på vinsten. I enskild firma är det både inkomstskatten och egenavgifterna — tillsammans utgör de din marginal, och egenavgifterna står för ungefär hälften. I aktiebolag är det bolagsskatten och skatten på den utdelning som annars hade blivit av vinsten. Är du momsregistrerad får du dessutom tillbaka momsen. Ett privatköp betalar du däremot med pengar som redan passerat allt detta.</InfoBox>
+            <InfoBox id="marginal" open={openInfo}>Prislappen är sällan din verkliga kostnad. Ett företagsköp sänker vinsten, och med den allt som beräknas på vinsten — både inkomstskatten och egenavgifterna, som tillsammans utgör din marginal och där egenavgifterna står för ungefär hälften. Är du momsregistrerad får du dessutom tillbaka momsen. Ett privatköp betalar du däremot med pengar som redan passerat allt detta.</InfoBox>
 
             {!isPro && (
               <div className="lockOverlay">
@@ -842,7 +828,7 @@ export default function KvarioApp() {
                         <div><span>{MG.momsTillbaka(country.vatName)}</span><b>−{kr(margin.vatBack)} kr</b></div>
                       )}
                       <div>
-                        <span>{MG.besparing(state.form)}</span>
+                        <span>{MG.besparing}</span>
                         <b>−{kr(margin.taxSaving)} kr</b>
                       </div>
                       <div className="tot"><span>{MG.verkligKostnad}</span><b>{kr(margin.real)} kr</b></div>
@@ -852,7 +838,7 @@ export default function KvarioApp() {
                     </p>
                     <p className="mgSmalt">
                       Besparingen bygger på din marginal på {pct(d.tax.marginal)} %, som innehåller{" "}
-                      {MG.besparingKort(state.form)}. Har du anställda ingår även deras
+                      {MG.besparingKort}. Har du anställda ingår även deras
                       arbetsgivaravgifter i vad verksamheten kostar, men de påverkas inte av ett
                       enskilt inköp.
                     </p>
@@ -921,15 +907,6 @@ export default function KvarioApp() {
         {/* INSTÄLLNINGAR */}
         {form && form.settings && (
           <div className="settings">
-            <div className="sblock">
-              <div className="slabel">Företagsform</div>
-              <div className="segbtns">
-                {Object.values(country.forms).map((f) => (
-                  <button key={f.id} className="sb" data-on={state.form === f.id} onClick={() => patch({ form: f.id })}>{f.name}</button>
-                ))}
-              </div>
-              <div className="shint">{form.blurb}</div>
-            </div>
             <div className="sblock">
               <div className="slabel">Födelseår</div>
               <input className="w90 num" type="number" placeholder="ÅÅÅÅ"
@@ -1016,68 +993,24 @@ export default function KvarioApp() {
 
         {/* DIAGRAM */}
         {d.tax && country.forms && (
-          <>
-            {state.form === "ab" && (
-              <div className={`panel ${isPro ? "" : "locked"}`}>
-                <button className="panelHead toggleHead" onClick={() => setOpenChart(openChart === "lon" ? null : "lon")}>
-                  <h2>Löneoptimeraren</h2>
-                  <Info id="lonopt" open={openInfo} setOpen={setOpenInfo} />
-                  <span className="eyebrow">{openChart === "lon" ? "Dölj" : "Visa diagram"}</span>
-                </button>
-                <InfoBox id="lonopt" open={openInfo}>I ett aktiebolag kan du ta ut pengar som lön eller som utdelning. Lön kostar arbetsgivaravgifter men beskattas mildare på låga nivåer och ger pension och sjukpenning. Utdelning beskattas med 20 procent inom gränsbeloppet men bygger inget socialt skydd. Kurvan visar summan av allt vid varje löneuttag — och den har en topp.</InfoBox>
-                {!isPro && openChart === "lon" && (
-                  <div className="lockOverlay"><div>
-                    <div className="eyebrow">{trial.ended ? "Fanns i din provperiod" : "Ingår i Pro"}</div>
-                    <p>Hitta löneuttaget som ger dig mest kvar. Kurvan har en topp — den är värd tiotusentals kronor.</p>
-                    <button className="add" onClick={() => setShowPaywall(true)}>Lås upp</button>
-                  </div></div>
-                )}
-                {openChart === "lon" && (
-                  <Loneoptimeraren form={form} revenue={d.revenue} costs={d.costBase} payroll={payroll} payrollAvgifter={personal.avgifter}
-                                   settings={settings} onPick={(v) => setSetting("lonManad", v)} />
-                )}
-              </div>
+          <div className={`panel ${isPro ? "" : "locked"}`}>
+            <button className="panelHead toggleHead" onClick={() => setOpenChart(openChart === "marg" ? null : "marg")}>
+              <h2>Dina skattetrösklar</h2>
+                <Info id="marg" open={openInfo} setOpen={setOpenInfo} />
+              <span className="eyebrow">{openChart === "marg" ? "Dölj" : "Visa diagram"}</span>
+            </button>
+            <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen som tar slut, gränsbeloppet för utdelning, den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
+            {!isPro && openChart === "marg" && (
+              <div className="lockOverlay"><div>
+                <div className="eyebrow">{trial.ended ? "Fanns i din provperiod" : "Ingår i Pro"}</div>
+                <p>Se var trösklarna sitter och hur nära du är nästa.</p>
+                <button className="add" onClick={() => setShowPaywall(true)}>Lås upp</button>
+              </div></div>
             )}
-
-            <div className={`panel ${isPro ? "" : "locked"}`}>
-              <button className="panelHead toggleHead" onClick={() => setOpenChart(openChart === "bryt" ? null : "bryt")}>
-                <h2>Enskild firma eller aktiebolag?</h2>
-                  <Info id="bryt" open={openInfo} setOpen={setOpenInfo} />
-                <span className="eyebrow">{openChart === "bryt" ? "Dölj" : "Visa diagram"}</span>
-              </button>
-              <InfoBox id="bryt" open={openInfo}>Samma omsättning i båda formerna, räknat med dina kostnader. Aktiebolag blir normalt bättre först vid högre vinster, eftersom bolaget kostar revisor, årsredovisning och 25 000 kr i aktiekapital. Brytpunkten visar var linjerna korsas för just dina siffror.</InfoBox>
-              {!isPro && openChart === "bryt" && (
-                <div className="lockOverlay"><div>
-                  <div className="eyebrow">{trial.ended ? "Fanns i din provperiod" : "Ingår i Pro"}</div>
-                  <p>Se vid vilken omsättning ett aktiebolag börjar löna sig för just dina siffror.</p>
-                  <button className="add" onClick={() => setShowPaywall(true)}>Lås upp</button>
-                </div></div>
-              )}
-              {openChart === "bryt" && (
-                <Brytpunkten forms={country.forms} revenue={d.revenue} costs={d.costBase} payroll={payroll} payrollAvgifter={personal.avgifter}
-                             settings={settings} activeForm={state.form} />
-              )}
-            </div>
-
-            <div className={`panel ${isPro ? "" : "locked"}`}>
-              <button className="panelHead toggleHead" onClick={() => setOpenChart(openChart === "marg" ? null : "marg")}>
-                <h2>Dina skattetrösklar</h2>
-                  <Info id="marg" open={openInfo} setOpen={setOpenInfo} />
-                <span className="eyebrow">{openChart === "marg" ? "Dölj" : "Visa diagram"}</span>
-              </button>
-              <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen som tar slut, gränsbeloppet för utdelning, den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
-              {!isPro && openChart === "marg" && (
-                <div className="lockOverlay"><div>
-                  <div className="eyebrow">{trial.ended ? "Fanns i din provperiod" : "Ingår i Pro"}</div>
-                  <p>Se var trösklarna sitter och hur nära du är nästa.</p>
-                  <button className="add" onClick={() => setShowPaywall(true)}>Lås upp</button>
-                </div></div>
-              )}
-              {openChart === "marg" && (
-                <Marginalkurvan form={form} revenue={d.revenue} costs={d.costBase} payroll={payroll} payrollAvgifter={personal.avgifter} settings={settings} />
-              )}
-            </div>
-          </>
+            {openChart === "marg" && (
+              <Marginalkurvan form={form} revenue={d.revenue} costs={d.costBase} payroll={payroll} payrollAvgifter={personal.avgifter} settings={settings} />
+            )}
+          </div>
         )}
 
         {/* ANSTÄLLDA */}
@@ -1090,12 +1023,11 @@ export default function KvarioApp() {
                 {employees.length === 0 ? "Inga" : employees.length + (employees.length === 1 ? " person" : " personer")}
               </span>
             </div>
-            <InfoBox id="anstallda" open={openInfo}>Löner och arbetsgivaravgifter dras som kostnader i båda företagsformerna. Avgiften är 31,42 % som huvudregel, men flera nedsättningar finns: växa-stöd för de två första anställda, lägre sats för 19–23-åringar, och endast ålderspensionsavgift för den som fyllt 67. Ange födelseår så räknas rätt sats. I aktiebolag höjer löneunderlaget dessutom ditt gränsbelopp för lågbeskattad utdelning, på den del som överstiger löneavdraget.</InfoBox>
+            <InfoBox id="anstallda" open={openInfo}>Löner och arbetsgivaravgifter dras som kostnader i firman. Avgiften är 31,42 % som huvudregel, men flera nedsättningar finns: växa-stöd för de två första anställda, lägre sats för 19–23-åringar, och endast ålderspensionsavgift för den som fyllt 67. Ange födelseår så räknas rätt sats.</InfoBox>
 
             {employees.length === 0 && (
               <p className="empty">
                 Har du anställda? Lägg in dem här så räknas löner och arbetsgivaravgifter in som kostnader.
-                {state.form === "ab" && " I aktiebolag höjer löneunderlaget dessutom ditt gränsbelopp för utdelning."}
               </p>
             )}
 
@@ -1121,9 +1053,6 @@ export default function KvarioApp() {
                 <div><span className="eyebrow">Total kostnad</span><b className="brass">{kr(personal.total)} kr</b></div>
                 {personal.sparat > 0 && (
                   <div><span className="eyebrow">Sparat på nedsättningar</span><b className="brass">{kr(personal.sparat)} kr</b></div>
-                )}
-                {state.form === "ab" && d.tax.lonebaserat > 0 && (
-                  <div><span className="eyebrow">Höjer gränsbeloppet</span><b className="brass">+{kr(d.tax.lonebaserat)} kr</b></div>
                 )}
               </div>
             )}
@@ -1157,13 +1086,6 @@ export default function KvarioApp() {
                   vi om.
                 </p>
               </div>
-            )}
-
-            {state.form === "ab" && employees.length > 0 && d.tax.lonebaserat === 0 && (
-              <p className="caveat">
-                Löneunderlaget ligger under löneavdraget på åtta inkomstbasbelopp, så det ger inget
-                lönebaserat utrymme än. Först över den nivån börjar löner höja ditt gränsbelopp.
-              </p>
             )}
           </div>
         )}

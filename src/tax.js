@@ -4,13 +4,11 @@
    All landsspecifik logik ligger här. Komponenterna innehåller
    inte en enda skattesats.
 
-   Sverige har två företagsformer med helt olika kedjor:
-     Enskild firma — ett skattesteg, vinsten är din inkomst
-     Aktiebolag    — två steg, bolaget beskattas och sedan du
+   Kvario räknar bara på enskild firma: vinsten är din inkomst,
+   ett enda skattesteg.
    ============================================================ */
 
 const PBB = 59200;      // prisbasbelopp 2026 (Skatteverket)
-const IBB = 83400;      // inkomstbasbelopp 2026 (Skatteverket)
 const SKIKTGRANS = 643000;
 
 /* ---------- Arbetsgivaravgifter per anställd ----------
@@ -250,122 +248,6 @@ const ENSKILD = {
   },
 };
 
-/* ---------- Aktiebolag ---------- */
-
-const AB = {
-  id: "ab",
-  name: "Aktiebolag",
-  blurb: "Två skattesteg: bolaget betalar först, sedan du när du tar ut pengarna.",
-  settings: [
-    {
-      key: "kommunalskatt", label: "Kommunalskatt", type: "percent", default: 32.0,
-      hint: "Varierar mellan cirka 29 % och 35 % beroende på kommun.",
-      presets: [["Stockholm", 29.98], ["Göteborg", 32.6], ["Malmö", 32.42], ["Karlstad", 33.65]],
-    },
-    {
-      key: "momsregistrerad", label: "Momsregistrerad", type: "toggle", default: true,
-      hint: "Är du inte momsregistrerad lägger du ingen moms på dina fakturor — men du får heller inte dra av momsen på dina inköp. Då blir hela inköpspriset din kostnad. Undantaget gäller upp till 120 000 kr i omsättning per år.",
-    },
-    {
-      key: "annanInkomst", label: "Annan inkomst av tjänst", type: "number", default: 0, suffix: "kr/år",
-      hint: "Lön från anställning, pension eller a-kassa. Företagets inkomst läggs ovanpå den, så den avgör om du hamnar över skiktgränsen — och därmed hela din marginalskatt.",
-    },
-    {
-      key: "lonManad", label: "Din lön per månad", type: "number", default: 0, suffix: "kr",
-      hint: "Skriv in vad du tar ut i lön varje månad. Lön kostar 31,42 % i arbetsgivaravgifter men ger pension och sjukpenning. Utdelning är billigare men bygger inget socialt skydd.",
-    },
-    {
-      key: "utdelning", label: "Dela ut resten till dig själv", type: "toggle", default: true,
-      hint: "På: bolagets vinst efter skatt delas ut till dig och beskattas med 20 % inom gränsbeloppet. Av: pengarna ligger kvar i bolaget, obeskattade hos dig tills du tar ut dem ett senare år.",
-    },
-  ],
-  milestones: [
-    {
-      key: "gransbelopp", label: "Utdelning över gränsbeloppet",
-      note: "Din utdelning överstiger gränsbeloppet, så den delen beskattas som tjänst i stället för med 20 %. Gränsbeloppet är grundbeloppet fyra inkomstbasbelopp plus eventuellt lönebaserat utrymme — löner höjer det alltså.",
-      hit: (r) => r.tjanstedel > 0,
-    },
-    {
-      key: "statlig", label: "Statlig skatt börjar",
-      note: "Din lön plus tjänstebeskattad utdelning passerar skiktgränsen.",
-      hit: (r) => r.statlig > 0,
-    },
-  ],
-
-  compute({ revenue, costs, settings, payroll = 0, payrollAvgifter = null }) {
-    const agaPersonal = payrollAvgifter !== null ? payrollAvgifter : payroll * AGA_FULL;
-    const efterPersonal = revenue - costs - payroll - agaPersonal;
-
-    const onskadLon = Math.max(0, (settings.lonManad || 0) * 12);
-    // Bolaget kan inte betala ut mer lön än det har täckning för.
-    // Lön plus arbetsgivaravgifter måste rymmas i resultatet.
-    const maxLon = Math.max(0, efterPersonal / (1 + AGA_FULL));
-    const lon = Math.min(onskadLon, maxLon);
-    const lonKapad = onskadLon > lon + 1;
-    const aga = lon * AGA_FULL;
-
-    const resultat = efterPersonal - lon - aga;
-    const bolagsskatt = Math.max(0, resultat) * 0.206;
-    const efterBolagsskatt = Math.max(0, resultat - bolagsskatt);
-
-    const utdelning = settings.utdelning ? efterBolagsskatt : 0;
-
-    // Nya 3:12: grundbelopp fyra inkomstbasbelopp, plus lönebaserat
-    // utrymme på hälften av löneunderlaget över löneavdraget åtta IBB.
-    const loneunderlag = payroll + lon;
-    const lonebaserat = 0.5 * Math.max(0, loneunderlag - 8 * IBB);
-    const gransbelopp = 4 * IBB + lonebaserat;
-    const kapitaldel = Math.min(utdelning, gransbelopp);
-    const tjanstedel = Math.max(0, utdelning - gransbelopp);
-    const utdelningsskatt = kapitaldel * 0.2;
-
-    // Tjänstebeskattad utdelning läggs ovanpå lönen, men räknas
-    // inte som arbetsinkomst för jobbskatteavdraget. Har du inkomst
-    // från annat håll staplas allt och kan trycka dig över skiktgränsen.
-    const annan = Math.max(0, settings.annanInkomst || 0);
-    const utan = tjansteskatt(annan, annan, settings.kommunalskatt, settings);
-    const med = tjansteskatt(annan + lon + tjanstedel, annan + lon, settings.kommunalskatt, settings);
-    const t = { ...med, skatt: Math.max(0, med.skatt - utan.skatt) };
-    const kvar = Math.max(0, lon + utdelning - t.skatt - utdelningsskatt);
-
-    const lines = [
-      { key: "personal", label: "Löner och avgifter", amount: payroll + agaPersonal,
-        note: `${Math.round(payroll).toLocaleString("sv-SE")} kr till anställda plus arbetsgivaravgifter` },
-      { key: "aga", label: "Arbetsgivaravgifter", amount: aga, note: "31,42 % ovanpå din egen lön" },
-      { key: "bolagsskatt", label: "Bolagsskatt", amount: bolagsskatt, note: "20,6 % på bolagets vinst" },
-      { key: "inkomstskatt",
-        label: lon > 0 ? "Skatt på lön" : "Skatt som tjänst",
-        amount: t.skatt,
-        note: annan > 0
-          ? `Ovanpå ${Math.round(annan).toLocaleString("sv-SE")} kr i annan inkomst${med.statlig > 0 ? ", varav en del över skiktgränsen" : ""}`
-          : lon > 0
-          ? (tjanstedel > 0
-              ? `På lön plus ${Math.round(tjanstedel).toLocaleString("sv-SE")} kr utdelning över gränsbeloppet`
-              : `Kommunal ${settings.kommunalskatt} %, efter jobbskatteavdrag ${Math.round(t.jsa).toLocaleString("sv-SE")} kr`)
-          : "Utdelning över gränsbeloppet beskattas som tjänst" },
-      { key: "utdelningsskatt", label: "Skatt på utdelning", amount: utdelningsskatt,
-        note: tjanstedel > 0 ? "20 % upp till gränsbeloppet, resten som tjänst" : "20 % inom gränsbeloppet" },
-    ].filter((l) => l.amount > 0.5);
-
-    if (!settings.utdelning && efterBolagsskatt > 0) {
-      lines.push({ key: "kvarIBolaget", label: "Kvar i bolaget", amount: efterBolagsskatt,
-        note: "Obeskattat hos dig tills du tar ut det" });
-    }
-
-    return {
-      overskott: Math.max(0, revenue - costs),
-      kvar, lines,
-      owed: aga + agaPersonal + bolagsskatt + t.skatt + utdelningsskatt,
-      gransbelopp, utdelning, lon, lonKapad, lonebaserat, loneunderlag, payroll,
-      statlig: med.statlig, tjanstedel,
-      warning: lonKapad
-        ? `Bolaget har bara täckning för ${Math.round(lon / 12).toLocaleString("sv-SE")} kr i månadslön inklusive arbetsgivaravgifter.`
-        : null,
-      caveat: "Uppskattning för fåmansbolag, inkomstår 2026. Gränsbeloppet räknas som grundbelopp fyra inkomstbasbelopp enligt de nya 3:12-reglerna, utan sparat utdelningsutrymme från tidigare år. Löneunderlaget avser innevarande år, inte föregående som reglerna föreskriver.",
-    };
-  },
-};
-
 /* ---------- Länder ---------- */
 
 /* ---------- Fakturatyper ----------
@@ -403,7 +285,7 @@ export const COUNTRIES = {
     threshold: 120000,
     thresholdNote: "Momsbefrielse gäller upp till 120 000 kr omsättning exklusive moms. Gränsen höjdes från 80 000 kr den 1 januari 2025. Villkoret gäller även de två föregående beskattningsåren, och momsplikten börjar direkt vid den faktura som passerar gränsen — utan beslut från Skatteverket.",
     taxModule: "live",
-    forms: { enskild: ENSKILD, ab: AB },
+    forms: { enskild: ENSKILD },
   },
 };
 

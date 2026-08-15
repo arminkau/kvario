@@ -145,7 +145,7 @@ export default function Landing({ onStart, onDemo }) {
             <div className="mgRows">
               <div><span>{MG.prislapp}</span><b>{kr(amount)} kr</b></div>
               <div><span>{MG.momsTillbaka("Moms")}</span><b>−{kr(calc.vatBack)} kr</b></div>
-              <div><span>{MG.besparing("enskild")}</span><b>−{kr(calc.saving)} kr</b></div>
+              <div><span>{MG.besparing}</span><b>−{kr(calc.saving)} kr</b></div>
               <div className="tot"><span>{MG.verkligKostnad}</span><b>{kr(calc.real)} kr</b></div>
             </div>
             <p className="mgHours">Motsvarar <b>{calc.businessHours.toFixed(1)} arbetstimmar</b>.</p>
@@ -173,7 +173,7 @@ export default function Landing({ onStart, onDemo }) {
           ["Undanlagt", "Se vad som borde stå på ett separat konto just nu, och hur långt du har kvar dit."],
           ["Årsprognos", "Få veta i förväg när du är på väg att passera en skattegräns — medan du fortfarande kan göra något åt det."],
           ["Avdragsguiden", "Gymkortet, lunchen, hemmakontoret. Svar på de tjugo frågor alla ställer, precis när du ställer dem."],
-          ["Enskild firma och AB", "Båda formerna beräknas, med löneoptimering och brytpunkt så du ser åt vilket håll det lutar."],
+          ["Dina skattetrösklar", "Se var gränserna ligger och hur nära du är nästa, byggt just för enskild firma."],
         ].map(([t, d]) => (
           <div className="lpFeat" key={t}>
             <h4>{t}</h4>

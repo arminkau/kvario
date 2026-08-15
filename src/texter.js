@@ -14,16 +14,13 @@
 export const MARKE = "Kvario";
 export const TAGLINE = "Vad av pengarna som faktiskt är dina";
 
-/* Etiketter i marginalräknaren. Beror på företagsform, eftersom
-   det som sjunker när vinsten sjunker inte är detsamma. */
+/* Etiketter i marginalräknaren. */
 export const MG = {
   prislapp: "Prislapp",
   momsTillbaka: (vatName) => `${vatName} tillbaka`,
   verkligKostnad: "Verklig kostnad",
-  besparing: (form) =>
-    form === "ab" ? "Lägre bolags- och utdelningsskatt" : "Lägre skatt och egenavgifter",
-  besparingKort: (form) =>
-    form === "ab" ? "bolagsskatt och skatt på utdelning" : "både inkomstskatt och egenavgifter",
+  besparing: "Lägre skatt och egenavgifter",
+  besparingKort: "både inkomstskatt och egenavgifter",
   lagen: [
     ["business", "Företagsköp"],
     ["private", "Privat köp"],
@@ -31,10 +28,9 @@ export const MG = {
   ],
   forklaring:
     "Prislappen säger sällan vad något faktiskt kostar dig. Ett företagsköp sänker vinsten, " +
-    "och med den allt som beräknas på vinsten. I enskild firma är det både inkomstskatten och " +
-    "egenavgifterna — egenavgifterna står för ungefär hälften. I aktiebolag är det bolagsskatten " +
-    "och skatten på den utdelning som annars hade blivit av vinsten. Är du momsregistrerad får du " +
-    "dessutom tillbaka momsen. Ett privatköp betalar du däremot med pengar som redan passerat allt detta.",
+    "och med den allt som beräknas på vinsten. Det är både inkomstskatten och egenavgifterna " +
+    "— egenavgifterna står för ungefär hälften. Är du momsregistrerad får du dessutom tillbaka " +
+    "momsen. Ett privatköp betalar du däremot med pengar som redan passerat allt detta.",
 };
 
 /* Posterna i fördelningsstapeln. */
