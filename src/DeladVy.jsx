@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { hamtaDeladRapport } from "./dela";
-import { COUNTRIES, personalkostnad } from "./tax";
+import { COUNTRIES, personalkostnad, FAKTURATYPER } from "./tax";
 import { CSS } from "./theme";
 import { MARKE } from "./texter";
 import Rapport, { RAPPORTER } from "./Rapport.jsx";
@@ -23,15 +23,22 @@ function berakna(state) {
   const momsreg = settings.momsregistrerad !== false;
 
   const revenue = invoices.reduce((s, i) => s + i.amount * FX[i.currency], 0);
+  // Vilka typer som bär moms avgörs av FAKTURATYPER, inte av en
+  // egen lista här — annars glider vyerna isär när en typ ändras.
   const outVat = momsreg
-    ? invoices.reduce((s, i) => s + (i.typ === "eub2b" || i.typ === "export" ? 0 : i.amount * FX[i.currency] * (i.vat / 100)), 0)
+    ? invoices.reduce((s, i) => {
+        const t = FAKTURATYPER[i.typ || "se"];
+        return s + (t.moms ? i.amount * FX[i.currency] * (i.vat / 100) : 0);
+      }, 0)
     : 0;
   const inVat = momsreg ? costs.reduce((s, c) => s + c.amount * FX[c.currency] * (c.vat / 100), 0) : 0;
   const costBase = costs.reduce((s, c) => s + c.amount * FX[c.currency] * (momsreg ? 1 : 1 + c.vat / 100), 0);
 
   let tax = null;
   if (form) {
-    tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter });
+    // Samma inkomstår som appen räknar med, annars kan konsulten se
+    // andra siffror än den som delade rapporten.
+    tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: new Date().getFullYear() });
   }
 
   const d = { revenue, outVat, inVat, vatDue: Math.max(0, outVat - inVat), costBase, tax, momsreg, count: invoices.length, perTyp: {} };

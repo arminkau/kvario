@@ -40,6 +40,11 @@ const PLANS = {
 /* Sidan var tidigare en enda lång rulle. Flikarna delar upp den efter
    vad man faktiskt kommer för: se läget, mata in, räkna på något,
    slå upp ett avdrag, ta ut underlag, sköta kontot. */
+/* Ett enda ställe som bestämmer vilket inkomstår appen räknar på.
+   Alla anrop till compute() och marginalskatt() ska få detta värde,
+   annars kan två siffror bredvid varandra bygga på olika års regler. */
+const INKOMSTAR = new Date().getFullYear();
+
 const FLIKAR = [
   ["oversikt", "Översikt"],
   ["fakturor", "Fakturor"],
@@ -463,9 +468,11 @@ export default function KvarioApp() {
     if (country.taxModule === "live" && form) {
       // Året styr vilka satser som används. Saknas det i tabellen
       // säger tax.js ifrån via saknasAr i stället för att tyst
-      // räkna vidare på fjolårets siffror.
-      tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: new Date().getFullYear() });
-      tax.marginal = marginalskatt(form, { revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter });
+      // räkna vidare på fjolårets siffror. Marginalen måste få samma
+      // år, annars kan den räknas med andra satser än siffrorna den
+      // står bredvid.
+      tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: INKOMSTAR });
+      tax.marginal = marginalskatt(form, { revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: INKOMSTAR });
     }
     return { revenue, outVat, inVat, vatDue: Math.max(0, outVat - inVat), costBase, unpaid, tax, count: used.length, momsreg, perTyp };
   }, [invoices, costs, paidOnly, countryCode, settings, state.form, payroll, personal.avgifter]);
@@ -508,7 +515,7 @@ export default function KvarioApp() {
     const projRevenue = d.revenue / elapsed;
     const projCosts = d.costBase / elapsed;
     const projOverskott = Math.max(0, projRevenue - projCosts);
-    const projTax = form.compute({ revenue: projRevenue, costs: projCosts, settings, payroll, payrollAvgifter: personal.avgifter });
+    const projTax = form.compute({ revenue: projRevenue, costs: projCosts, settings, payroll, payrollAvgifter: personal.avgifter, ar: INKOMSTAR });
 
     // Testa mot det faktiska utfallet i båda scenarierna, inte mot
     // överskottet — trösklarna mäts på olika underlag.
@@ -541,12 +548,10 @@ export default function KvarioApp() {
         billNeeded: exVat,
       };
     }
-    if (mode === "private") {
-      const gross = amount / Math.max(0.05, 1 - m);
-      return { kind: "private", sticker: amount, real: amount, billNeeded: gross, hours: gross / rate };
-    }
+    // Privat köp: för att ha beloppet i handen måste vinsten först
+    // passera skatt och egenavgifter.
     const gross = amount / Math.max(0.05, 1 - m);
-    return { kind: "payout", sticker: amount, billNeeded: gross, hours: gross / rate };
+    return { kind: "private", sticker: amount, real: amount, billNeeded: gross, hours: gross / rate };
   }, [what, mode, d, hourlyRate, countryCode]);
 
   /* ---------- Stapeln ----------
@@ -1133,6 +1138,20 @@ export default function KvarioApp() {
             </p>
           </div>
         )}
+        {/* Räntefördelning tillämpas automatiskt när kapitalunderlaget
+            är ifyllt, så det behövs ingen varning om att den missats.
+            Det som däremot går att missa är att fältet finns — och
+            har man kapital i firman är det pengar. Visas bara vid
+            vinst som gör skillnaden meningsfull, och försvinner så
+            snart fältet fyllts i. */}
+        {d.tax && d.tax.overskott > 100000 && !settings.kapitalunderlag && (
+          <p className="caveat">
+            Har du eget kapital i firman? Överstiger det 50 000 kr får en del av vinsten
+            flyttas till inkomst av kapital och beskattas med 30 % i stället för din
+            marginalskatt på {pct(d.tax.marginal)} %.{" "}
+            <button className="linkbtn" onClick={() => setFlik("konto")}>Fyll i kapitalunderlaget</button>
+          </p>
+        )}
         {!d.momsreg && country.threshold && d.revenue > country.threshold * 0.7 && (
           <div className="alert">
             <span className="bang">!</span>
@@ -1156,7 +1175,7 @@ export default function KvarioApp() {
                   <Info id="undanlagt" open={openInfo} setOpen={setOpenInfo} />
               <span className="eyebrow">Ska stå på ett separat konto</span>
             </div>
-            <InfoBox id="undanlagt" open={openInfo}>Summan av moms, skatter och avgifter du kommer att behöva betala in för det du fakturerat hittills. De pengarna bör inte ligga på samma konto som dina egna — skriv in vad du faktiskt lagt undan så visar mätaren gapet.</InfoBox>
+            <InfoBox id="undanlagt" open={openInfo}>Summan av moms, egenavgifter, inkomstskatt och eventuell skatt på räntefördelning för det du fakturerat hittills. De pengarna bör inte ligga på samma konto som dina egna — skriv in vad du faktiskt lagt undan så visar mätaren gapet. Avsättning till periodiseringsfond räknas inte in: de pengarna stannar i firman.</InfoBox>
             <div className="envRow">
               <div>
                 <div className="eyebrow">Du borde ha undan</div>
@@ -1283,17 +1302,6 @@ export default function KvarioApp() {
                     <p className="mgHours">
                       Det är <b>{margin.hours.toFixed(1)} arbetstimmar</b>. Samma sak köpt via firman hade kostat dig{" "}
                       {(margin.sticker / (d.momsreg ? 1 + country.defaultVat / 100 : 1) / Math.max(1, hourlyRate)).toFixed(1)} timmar.
-                    </p>
-                  </>
-                )}
-                {mode === "payout" && (
-                  <>
-                    <p className="mgLead">
-                      För att få ut <b>{kr(margin.sticker)} kr</b> i handen måste du fakturera
-                      <b className="brass"> {kr(margin.billNeeded)} kr</b> exklusive {country.vatName.toLowerCase()}.
-                    </p>
-                    <p className="mgHours">
-                      Det är <b>{margin.hours.toFixed(1)} arbetstimmar</b> till ditt timpris.
                     </p>
                   </>
                 )}

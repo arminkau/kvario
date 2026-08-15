@@ -118,7 +118,7 @@ export default function Landing({ onStart }) {
         <p className="lpBody">{MG.forklaring} Skjut på siffrorna och se skillnaden.</p>
 
         <div className="segbtns">
-          {MG.lagen.filter(([k]) => k !== "payout").map(([k, l]) => (
+          {MG.lagen.map(([k, l]) => (
             <button key={k} className="sb" data-on={mode === k} onClick={() => setMode(k)}>{l}</button>
           ))}
         </div>

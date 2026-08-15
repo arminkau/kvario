@@ -21,10 +21,13 @@ export const MG = {
   verkligKostnad: "Verklig kostnad",
   besparing: "Lägre skatt och egenavgifter",
   besparingKort: "både inkomstskatt och egenavgifter",
+  /* Två lägen, inte tre. "Ta ut netto" räknade samma sak som
+     "Privat köp" — båda svarar på vad du måste fakturera för att ha
+     ett visst belopp i handen — och två knappar för samma tal gör
+     bara valet svårare. */
   lagen: [
     ["business", "Företagsköp"],
     ["private", "Privat köp"],
-    ["payout", "Ta ut netto"],
   ],
   forklaring:
     "Prislappen säger sällan vad något faktiskt kostar dig. Ett företagsköp sänker vinsten, " +

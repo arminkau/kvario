@@ -1,14 +1,13 @@
 /* ============================================================
    Frivilliga uppgifter
 
-   Tre fält som gör beräkningen mer korrekt. Alla tre motsvarar
-   regler som faktiskt är byggda — vi frågar aldrig efter något
-   vi inte använder, eftersom det skulle antyda en precision som
-   inte finns.
+   Fälten motsvarar regler som faktiskt är byggda — vi frågar aldrig
+   efter något vi inte använder, eftersom det skulle antyda en
+   precision som inte finns.
 
-   Verktyget förblir en uppskattning även när alla tre är ifyllda.
-   Det som saknas är räntefördelning, periodiseringsfond och
-   expansionsfond, och de är medvetet inte byggda.
+   Verktyget förblir en uppskattning även när allt är ifyllt.
+   Räntefördelning och periodiseringsfond ingår numera; det som
+   fortfarande saknas står i UTELAMNAT nedan.
 
    OBS: kommunalskattesatserna är ungefärliga och ska kontrolleras
    mot Skatteverkets aktuella tabell. De ändras varje år och beror
@@ -32,6 +31,7 @@ export const KYRKOAVGIFT_SNITT = 1.03;   // procent, endast medlemmar
 /* Vad som fortfarande inte räknas. Visas öppet i appen så att
    ingen tror att siffran är fullständig. */
 export const UTELAMNAT = [
-  "Räntefördelning",
-  "Periodiseringsfond och expansionsfond",
+  "Expansionsfond",
+  "Sparade underskott från tidigare år",
+  "Återföring av tidigare periodiseringsfonder",
 ];

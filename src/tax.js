@@ -255,11 +255,6 @@ const ENSKILD = {
      egenavgifter och grundavdrag — inte på vinsten. */
   milestones: [
     {
-      key: "rantefordelning", label: "Räntefördelning outnyttjad",
-      note: "Du har kapital i firman som ger rätt till positiv räntefördelning, men har inte fyllt i något. Den delen skulle beskattas med 30 % i stället för din marginalskatt.",
-      hit: (r) => r.rfMojlig > 0 && r.rantefordelning === 0,
-    },
-    {
       key: "statlig", label: "Statlig skatt börjar",
       note: "Skiktgränsen på 643 000 kr mäts på beskattningsbar förvärvsinkomst, alltså efter egenavgifter och grundavdrag. Över den tillkommer 20 % statlig skatt på den överskjutande delen.",
       hit: (r) => r.statlig > 0,
@@ -425,11 +420,16 @@ export const COUNTRIES = {
 };
 
 /* Marginalen mäts numeriskt: vad kostar nästa tusenlapp?
-   Därför blir den automatiskt rätt vid varje gräns, i båda formerna. */
-export function marginalskatt(form, { revenue, costs, settings, payroll = 0, payrollAvgifter = null }) {
+   Därför blir den automatiskt rätt vid varje gräns.
+
+   ar måste skickas med samma värde som huvudberäkningen. Annars kan
+   marginalen räknas med ett annat års satser än siffrorna den står
+   bredvid — en skillnad som är svår att upptäcka just för att båda
+   ser rimliga ut. */
+export function marginalskatt(form, { revenue, costs, settings, payroll = 0, payrollAvgifter = null, ar }) {
   const step = 1000;
-  const a = form.compute({ revenue, costs, settings, payroll, payrollAvgifter });
-  const b = form.compute({ revenue: revenue + step, costs, settings, payroll, payrollAvgifter });
+  const a = form.compute({ revenue, costs, settings, payroll, payrollAvgifter, ar });
+  const b = form.compute({ revenue: revenue + step, costs, settings, payroll, payrollAvgifter, ar });
   const m = ((b.owed - a.owed) / step);
   return Math.min(0.95, Math.max(0, m));
 }

@@ -20,8 +20,9 @@ export const hasAuth = Boolean(url && key);
 export const supabase = hasAuth ? createClient(url, key) : null;
 
 /* ---------- Lösenord ----------
-   Alternativ till den magiska länken, för den som hellre vill
-   logga in direkt utan att lämna appen och kolla mejlen. */
+   Appens huvudsakliga inloggning. Den magiska länken är borttagen:
+   den var lätt att missförstå, eftersom en redan använd länk gav
+   samma tysta återgång till startsidan som ett misslyckat försök. */
 export async function signInWithPassword(email, password) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;

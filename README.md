@@ -16,11 +16,25 @@ npm run dev
 ```
 index.html          Sidans skal
 src/main.jsx        Startpunkt
-src/App.jsx         Hela appen
+src/App.jsx         Hela appen, uppdelad i flikar
+src/tax.js          Skattemotorn och årsvärdena — alla satser bor här
+src/skattedatum.js  Deklarationsdatum, beroende på momsperiod
+src/Rapport.jsx     Rapporterna som skrivs ut som PDF
 src/storage.js      Var datan sparas — byt läge här, inte i App
 src/billing.js      Prat med Stripe via din server
+src/kvitton.js      Uppladdning av underlag till Supabase Storage
 server/server.js    Prenumerationsservern (behövs först vid riktig betalning)
+verktyg/            Genererar appikonerna, inget bildprogram behövs
 ```
+
+Två regler håller ihop det:
+
+- **Skattesatser bor bara i `tax.js`**, i årstabellen `AR`. Räknar appen på
+  ett år som saknas där varnar den i stället för att tyst använda gamla
+  siffror. Alla anrop till `compute()` och `marginalskatt()` ska få samma
+  `ar`, annars kan två siffror bredvid varandra bygga på olika års regler.
+- **Delade etiketter bor bara i `texter.js`.** Bygget failar annars, se
+  Kontroll mot dubbletter nedan.
 
 ## Deploy — frontend
 
@@ -44,8 +58,13 @@ Bara webhooken vet att pengarna faktiskt kom fram.
 
 ## Inloggning
 
-Appen kör utan konto som standard och sparar i webbläsaren.
-Sätt Supabase-nycklarna i `.env` för riktiga konton och synk mellan enheter.
+Inloggning sker med e-post och lösenord, eller med Google. Den magiska
+länken är borttagen: en redan använd länk gav samma tysta återgång till
+startsidan som ett misslyckat försök, vilket var omöjligt att förstå.
+
+Utan Supabase-nycklar i `.env` kör appen helt lokalt utan konto och sparar
+i webbläsaren — praktiskt vid utveckling, se `.env.utveckling`. Med nycklar
+satta krävs konto, och datan följer användaren mellan enheter.
 
 1. Skapa gratis projekt på supabase.com
 2. SQL Editor → klistra in `supabase/schema.sql` → Run
