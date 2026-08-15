@@ -157,6 +157,11 @@ const ENSKILD = {
       hint: "Är du inte momsregistrerad lägger du ingen moms på dina fakturor — men du får heller inte dra av momsen på dina inköp. Då blir hela inköpspriset din kostnad. Undantaget gäller upp till 120 000 kr i omsättning per år.",
     },
     {
+      key: "momsperiod", label: "Redovisar moms", type: "val", default: "helar",
+      val: [["helar", "En gång om året"], ["kvartal", "Varje kvartal"], ["manad", "Varje månad"]],
+      hint: "Styr när momsdeklarationen ska vara inne. Upp till 1 miljon kr i omsättning får du redovisa en gång om året, mellan 1 och 40 miljoner varje kvartal, däröver varje månad. Du kan alltid välja att redovisa oftare än du måste — kolla vad som står i ditt registreringsbevis.",
+    },
+    {
       key: "annanInkomst", label: "Annan inkomst av tjänst", type: "number", default: 0, suffix: "kr/år",
       hint: "Lön från anställning, pension eller a-kassa. Företagets inkomst läggs ovanpå den, så den avgör om du hamnar över skiktgränsen — och därmed hela din marginalskatt.",
     },

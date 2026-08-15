@@ -14,7 +14,7 @@ import { VILLKOR, VILLKOR_VERSION } from "./villkor";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
 import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER } from "./tax";
 import { Marginalkurvan } from "./Charts.jsx";
-import { nastaSkattedatum } from "./skattedatum";
+import { kommandeDatum } from "./skattedatum";
 import DeladVy from "./DeladVy.jsx";
 import { skapaDelning, listaDelningar, aterkallaDelning, delaUrl } from "./dela";
 import Landing from "./Landing.jsx";
@@ -446,7 +446,14 @@ export default function KvarioApp() {
     });
   };
 
-  const skattedatum = useMemo(() => nastaSkattedatum(), []);
+  /* EU-handel hämtas ur fakturorna — säljer du till företag i EU
+     tidigareläggs momsdeklarationen med två och en halv månad, och
+     det är inget man vill upptäcka i efterhand. */
+  const skattedatum = useMemo(() => kommandeDatum({
+    momsregistrerad: d.momsreg,
+    momsperiod: settings.momsperiod || "helar",
+    euHandel: (d.perTyp?.eub2b || 0) > 0,
+  }), [d.momsreg, settings.momsperiod, d.perTyp]);
 
   /* ---------- Prognos ---------- */
   const forecast = useMemo(() => {
@@ -1204,24 +1211,38 @@ export default function KvarioApp() {
         )}
 
         {/* VIKTIGA DATUM */}
-        {countryCode === "SE" && (
+        {countryCode === "SE" && skattedatum.length > 0 && (
           <div className="panel">
             <div className="panelHead">
-              <h2>Nästa deklarationsdatum</h2>
+              <h2>Att lämna in</h2>
               <Info id="datum" open={openInfo} setOpen={setOpenInfo} />
-              <span className="eyebrow">{skattedatum.dagarKvar} dagar kvar</span>
+              <span className="eyebrow">
+                Närmast om {skattedatum[0].dagarKvar} {skattedatum[0].dagarKvar === 1 ? "dag" : "dagar"}
+              </span>
             </div>
             <InfoBox id="datum" open={openInfo}>
-              Ungefärligt datum för den som redovisar moms en gång om året tillsammans med
-              inkomstdeklarationen — vanligast under omsättningsgränsen. Datumet kan flytta
-              sig någon dag mellan år, och redovisar du moms varje kvartal eller månad gäller
-              andra datum för dig. Kontrollera alltid ditt eget datum på skatteverket.se.
+              Inkomstdeklarationen lämnas 2 maj året efter. Momsdeklarationen har egna datum:
+              redovisar du helår är det 12 maj — men säljer du till företag i EU flyttas den
+              till 26 februari, alltså två och en halv månad tidigare. Redovisar du kvartal
+              eller månad gäller den 12:e i andra månaden efter periodens slut. Faller ett
+              datum på helg flyttas det till nästa vardag; röda dagar kan flytta det
+              ytterligare, så stäm av mot skatteverket.se innan du planerar sista dagen.
             </InfoBox>
-            <p className="mgLead">
-              <b>Inkomstdeklaration och momsdeklaration för {skattedatum.inkomstar}</b>{" "}
-              ska normalt vara inne senast{" "}
-              <b className="brass">{skattedatum.datum.toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" })}</b>.
-            </p>
+
+            {skattedatum.map((p) => (
+              <div className="item" key={p.id}>
+                <span className="iname">
+                  <b>{p.rubrik}</b>
+                  <div className="dim">{p.detalj}</div>
+                </span>
+                <span className="iamt">
+                  {p.forfall.toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" })}
+                  <div className={p.dagarKvar <= 30 ? "warn" : "dim"}>
+                    {p.dagarKvar} {p.dagarKvar === 1 ? "dag" : "dagar"} kvar
+                  </div>
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
