@@ -74,6 +74,26 @@ export const CSS = `
 .lockOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(250,252,251,.75);z-index:2;text-align:center;padding:20px}
 .lockOverlay p{font-size:13px;color:var(--slate);max-width:340px;margin:8px auto 14px;line-height:1.55}
 
+/* Huvudnavigering. Sticky så att den följer med vid scroll, och
+   horisontellt scrollbar på smala skärmar i stället för att radbryta
+   till två rader som knuffar ner innehållet. */
+.flikar{position:sticky;top:0;z-index:20;display:flex;gap:2px;margin:0 0 22px;
+  padding:6px 0;background:var(--bg);border-bottom:1px solid var(--line);
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.flikar::-webkit-scrollbar{display:none}
+.flik{font:inherit;font-size:13px;font-weight:600;white-space:nowrap;padding:8px 14px;
+  border:none;border-bottom:2px solid transparent;background:transparent;
+  color:var(--mist);cursor:pointer;border-radius:3px 3px 0 0}
+.flik:hover{color:var(--slate);background:rgba(0,0,0,.03)}
+.flik[data-on="true"]{color:var(--ink);border-bottom-color:var(--brass)}
+.flikPrick{display:inline-block;min-width:16px;height:16px;line-height:16px;margin-left:6px;
+  padding:0 4px;border-radius:999px;background:var(--brass);color:#fff;font-size:10px;text-align:center}
+
+/* Låter en flik visa sina paneler i annan ordning än de står i
+   koden, utan att blocken behöver flyttas. */
+.tabKolumn{display:flex;flex-direction:column}
+.tabKolumn > .sist{order:2}
+
 .segbtns{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
 .sb{font:inherit;font-size:12.5px;padding:6px 13px;border-radius:3px;border:1px solid var(--line);background:transparent;color:var(--slate);cursor:pointer}
 .sb[data-on="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
@@ -463,4 +483,60 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .uppskattning p{margin:0;font-size:11.5px;line-height:1.6;color:var(--slate)}
 
 @media (prefers-reduced-motion:reduce){.seg,.switch,.switch::after,.envFill{transition:none}}
+
+/* ============================================================
+   Mobil och pekskärm
+
+   Två saker som gör skillnad i praktiken:
+
+   1. Tryckytor. Ett kryss på 16 px går att träffa med mus men inte
+      med ett finger. Riktvärdet är cirka 44 px. Ytan växer utan att
+      ikonen gör det, så designen ser likadan ut.
+
+   2. Textstorlek i fält. Safari på iOS zoomar in automatiskt när man
+      fokuserar ett fält med mindre text än 16 px, och zoomar inte ut
+      igen. 16 px i fälten är enda sättet att slippa det.
+   ============================================================ */
+
+@media (pointer:coarse){
+  /* Riktiga mått i stället för osynliga överlägg — ett 44 px-overlay
+     på en 16 px-knapp i en 35 px hög rad skulle sträcka sig in i
+     raden ovanför och under, och ge feltryck. Raderna växer i stället
+     så att ytorna får plats på riktigt. */
+  .item{padding:13px 0}
+  .x{min-width:38px;min-height:38px;font-size:20px}
+  .tag{min-height:34px;padding:8px 11px}
+  .infoBtn{min-width:32px;min-height:32px}
+  .switch{transform:scale(1.15);transform-origin:left center}
+  .linkbtn{padding:8px 0;display:inline-block}
+  .flik{padding:11px 15px}
+}
+
+@media (max-width:560px){
+  .kvar{padding:14px 0 40px}
+  .wrap{padding:0 14px}
+
+  input,select,textarea{font-size:16px}
+
+  /* Fälten ska fylla raden i stället för att klämmas ihop på bredden */
+  .form{gap:8px}
+  .form .grow{flex:1 1 100%}
+  .form input,.form select{flex:1 1 calc(50% - 4px)}
+  .form .add{flex:1 1 100%}
+  .w90,.w110,.w130,.w70{width:auto}
+
+  .top{gap:10px}
+  .topRight{width:100%;justify-content:flex-start;flex-wrap:wrap;gap:10px}
+
+  .heroTop{flex-direction:column;align-items:flex-start;gap:14px}
+  .bignum{font-size:38px}
+  .envRow,.fcRow{grid-template-columns:1fr;gap:16px}
+
+  .panelHead{flex-wrap:wrap;gap:6px}
+  .utlandRad{flex-direction:column;gap:8px}
+  .dataKnappar{flex-direction:column;align-items:stretch}
+
+  /* Tabeller får scrolla i sin egen ruta i stället för hela sidan */
+  .rTabell{display:block;overflow-x:auto;white-space:nowrap}
+}
 `;

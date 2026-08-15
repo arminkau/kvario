@@ -17,13 +17,13 @@ const API = import.meta.env.VITE_API_URL;
    där appen ska falla tillbaka på simulerat Pro — det är till för
    utveckling utan server. Ett verkligt fel ska visas som ett fel,
    aldrig tystas ner till gratis Pro. */
-export async function startCheckout(userId, interval, angerratt = false) {
+export async function startCheckout(userId, interval) {
   if (!API || !userId) return { ok: false, reason: "unconfigured" };
   try {
     const r = await fetch(`${API}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, interval, angerratt }),
+      body: JSON.stringify({ userId, interval }),
     });
     const data = await r.json();
     if (r.ok && data.url) {

@@ -74,7 +74,6 @@ export default function Login({ onBack, onTestkonto }) {
           <h2 className="obTitle">Kolla din inkorg</h2>
           <p className="obLead">
             Vi skickade en länk till <b>{email}</b> för att sätta ett nytt lösenord.
-            Gäller även konton som aldrig haft ett lösenord tidigare.
           </p>
           <button className="linkbtn" onClick={() => setAterstallningSkickad(false)}>
             Tillbaka till inloggning
@@ -127,7 +126,7 @@ export default function Login({ onBack, onTestkonto }) {
 
         {lage === "in" && (
           <button className="linkbtn center" onClick={glomtLosenord} disabled={status === "sending"}>
-            Glömt lösenordet, eller aldrig haft ett?
+            Glömt lösenordet?
           </button>
         )}
 

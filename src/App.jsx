@@ -36,6 +36,18 @@ const PLANS = {
   pro: { name: "Pro", invoiceLimit: Infinity, month: 99, year: 990 },
 };
 
+/* Sidan var tidigare en enda lång rulle. Flikarna delar upp den efter
+   vad man faktiskt kommer för: se läget, mata in, räkna på något,
+   slå upp ett avdrag, ta ut underlag, sköta kontot. */
+const FLIKAR = [
+  ["oversikt", "Översikt"],
+  ["fakturor", "Fakturor"],
+  ["verktyg", "Verktyg"],
+  ["avdrag", "Avdrag"],
+  ["rapporter", "Rapporter"],
+  ["konto", "Konto"],
+];
+
 /* Liten frågeknapp per sektion. Förklaringen ligger dold tills
    någon frågar — den som redan förstått ska inte behöva läsa den. */
 function Info({ id, open, setOpen, children }) {
@@ -127,6 +139,7 @@ const delaToken = typeof window !== "undefined" ? new URLSearchParams(window.loc
 
 export default function KvarioApp() {
   const [view, setView] = useState("landing");
+  const [flik, setFlik] = useState("oversikt");
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
@@ -142,7 +155,6 @@ export default function KvarioApp() {
   const [saveState, setSaveState] = useState("idle");
   const [showPaywall, setShowPaywall] = useState(false);
   const [billing, setBilling] = useState("year");
-  const [angerratt, setAngerratt] = useState(false);
   const [what, setWhat] = useState("12000");
   const [avdragQ, setAvdragQ] = useState("");
   const [openAvdrag, setOpenAvdrag] = useState(null);
@@ -153,7 +165,6 @@ export default function KvarioApp() {
   const [villkorLast, setVillkorLast] = useState(false);
   const [visaVillkorFot, setVisaVillkorFot] = useState(false);
   const [visaPolicy, setVisaPolicy] = useState(false);
-  const [visaData, setVisaData] = useState(false);
   const [rapport, setRapport] = useState(null);
   const [demoAdmin, setDemoAdmin] = useState(false);
   const [samtycke, setSamtycke] = useState(undefined);
@@ -182,7 +193,16 @@ export default function KvarioApp() {
     return { active: daysLeft > 0, started: true, daysLeft, ended: daysLeft <= 0 };
   }, [state.trialStart, sub]);
 
-  const subscribed = (sub?.plan || plan) === "pro";
+  /* Planen ensam räcker inte. Missas en webhook — servern startar om,
+     Stripe får timeout, betalningen slutar gå igenom — skulle raden
+     ligga kvar som "pro" för alltid. Perioden är den hårda gränsen:
+     har den passerat med marginal är prenumerationen inte längre
+     giltig, oavsett vad plan-kolumnen säger. Marginalen finns för att
+     förnyelsen sker precis vid periodslutet och webhooken kan dröja. */
+  const NADSDAGAR = 3;
+  const periodGiltig = !sub?.current_period_end
+    || Date.now() < new Date(sub.current_period_end).getTime() + NADSDAGAR * 86400000;
+  const subscribed = (sub?.plan || plan) === "pro" && periodGiltig;
   const arAdmin = realAdmin || demoAdmin;
   const isPro = subscribed || trial.active;
   const settings = state.settingsMap[countryCode] || {};
@@ -550,7 +570,7 @@ export default function KvarioApp() {
   const startCheckout = async () => {
     setCheckoutFel("");
     if (!session?.user?.id) { patch({ plan: "pro" }); setShowPaywall(false); return; }
-    const r = await apiCheckout(session.user.id, billing, angerratt);
+    const r = await apiCheckout(session.user.id, billing);
     if (r.ok) return; // sidan navigerar bort till Stripe nu
     if (r.reason === "unconfigured") { patch({ plan: "pro" }); setShowPaywall(false); return; }
     setCheckoutFel(r.message || "Kunde inte starta betalningen. Försök igen om en stund.");
@@ -889,6 +909,19 @@ export default function KvarioApp() {
           </div>
         )}
 
+        {/* FLIKAR */}
+        <nav className="flikar">
+          {FLIKAR.map(([k, etikett]) => (
+            <button key={k} className="flik" data-on={flik === k} onClick={() => setFlik(k)}>
+              {etikett}
+              {k === "fakturor" && kanLaggaTillAterkommande && <span className="flikPrick">↻</span>}
+            </button>
+          ))}
+        </nav>
+
+        {/* ---------- ÖVERSIKT ---------- */}
+        {flik === "oversikt" && (<>
+
         {/* HERO */}
         <div className="hero">
           <div className="heroTop">
@@ -952,6 +985,22 @@ export default function KvarioApp() {
           </div>
         )}
 
+        {/* VARNINGAR */}
+        {!d.momsreg && country.threshold && d.revenue > country.threshold * 0.7 && (
+          <div className="alert">
+            <span className="bang">!</span>
+            <p>{d.revenue > country.threshold
+              ? <><strong>Du har passerat omsättningsgränsen för moms.</strong> Din omsättning på {kr(d.revenue)} kr exklusive moms överstiger 120 000 kr, så momsbefrielsen upphör automatiskt. Anmäl momsregistrering till Skatteverket. Momsplikten gällde redan från den faktura som passerade gränsen.</>
+              : <><strong>Du närmar dig omsättningsgränsen för moms.</strong> Du ligger på {kr(d.revenue)} kr av 120 000 kr exklusive moms. Passerar du gränsen upphör momsbefrielsen utan beslut, och du behöver anmäla dig till Skatteverket.</>}</p>
+          </div>
+        )}
+        {d.unpaid > 0 && !paidOnly && (
+          <div className="alert">
+            <span className="bang">!</span>
+            <p><strong>{kr(d.unpaid)} kr ligger i obetalda fakturor.</strong> Siffran ovan räknar med dem. Slå på "räkna bara betalda fakturor" för att se vad du har idag.</p>
+          </div>
+        )}
+
         {/* KUVERTET */}
         {d.tax && (
           <div className="panel envelope">
@@ -981,6 +1030,11 @@ export default function KvarioApp() {
             </div>
           </div>
         )}
+
+        </>)}
+
+        {/* ---------- VERKTYG ---------- */}
+        {flik === "verktyg" && (<>
 
         {/* MARGINALMOTORN — signaturen */}
         {d.tax && (
@@ -1077,6 +1131,11 @@ export default function KvarioApp() {
           </div>
         )}
 
+        </>)}
+
+        {/* ---------- ÖVERSIKT, forts. ---------- */}
+        {flik === "oversikt" && (<>
+
         {/* PROGNOS */}
         {forecast && (
           <div className={`panel ${isPro ? "" : "locked"}`}>
@@ -1130,6 +1189,11 @@ export default function KvarioApp() {
             </p>
           </div>
         )}
+
+        </>)}
+
+        {/* ---------- KONTO ---------- */}
+        {flik === "konto" && (<>
 
         {/* INSTÄLLNINGAR */}
         {form && form.settings && (
@@ -1211,21 +1275,10 @@ export default function KvarioApp() {
           </div>
         )}
 
-        {/* VARNINGAR */}
-        {!d.momsreg && country.threshold && d.revenue > country.threshold * 0.7 && (
-          <div className="alert">
-            <span className="bang">!</span>
-            <p>{d.revenue > country.threshold
-              ? <><strong>Du har passerat omsättningsgränsen för moms.</strong> Din omsättning på {kr(d.revenue)} kr exklusive moms överstiger 120 000 kr, så momsbefrielsen upphör automatiskt. Anmäl momsregistrering till Skatteverket. Momsplikten gällde redan från den faktura som passerade gränsen.</>
-              : <><strong>Du närmar dig omsättningsgränsen för moms.</strong> Du ligger på {kr(d.revenue)} kr av 120 000 kr exklusive moms. Passerar du gränsen upphör momsbefrielsen utan beslut, och du behöver anmäla dig till Skatteverket.</>}</p>
-          </div>
-        )}
-        {d.unpaid > 0 && !paidOnly && (
-          <div className="alert">
-            <span className="bang">!</span>
-            <p><strong>{kr(d.unpaid)} kr ligger i obetalda fakturor.</strong> Siffran ovan räknar med dem. Slå på "räkna bara betalda fakturor" för att se vad du har idag.</p>
-          </div>
-        )}
+        </>)}
+
+        {/* ---------- VERKTYG, forts. ---------- */}
+        {flik === "verktyg" && (<>
 
         {/* DIAGRAM */}
         {d.tax && country.forms && (
@@ -1249,9 +1302,18 @@ export default function KvarioApp() {
           </div>
         )}
 
+        </>)}
+
+        {/* ---------- FAKTUROR ----------
+           Panelerna ligger i filen i ordningen anställda, utland,
+           återkommande, listor. Klassen "sist" flyttar de två
+           sekundära längst ner med flex-order, så att fakturorna
+           möter en direkt utan att blocken behöver kastas om. */}
+        {flik === "fakturor" && (<div className="tabKolumn">
+
         {/* ANSTÄLLDA */}
         {d.tax && (
-          <div className="panel">
+          <div className="panel sist">
             <div className="panelHead">
               <h2>Anställda</h2>
                   <Info id="anstallda" open={openInfo} setOpen={setOpenInfo} />
@@ -1327,7 +1389,7 @@ export default function KvarioApp() {
         )}
 
         {d.momsreg && d.perTyp && (d.perTyp.eub2b > 0 || d.perTyp.eub2c > 0 || d.perTyp.export > 0) && (
-          <div className="panel">
+          <div className="panel sist">
             <div className="panelHead">
               <h2>Försäljning utomlands</h2>
                   <Info id="utland" open={openInfo} setOpen={setOpenInfo} />
@@ -1518,6 +1580,11 @@ export default function KvarioApp() {
           </div>
         </div>
 
+        </div>)}
+
+        {/* ---------- RAPPORTER ---------- */}
+        {flik === "rapporter" && (<>
+
         <div className="panel">
           <div className="panelHead">
             <h2>Rapporter</h2>
@@ -1575,9 +1642,13 @@ export default function KvarioApp() {
           </div>
         )}
 
-        {visaData && (
-          <div className="panel">
-            <div className="panelHead">
+        </>)}
+
+        {/* ---------- KONTO, forts. ---------- */}
+        {flik === "konto" && (<>
+
+        <div className="panel">
+          <div className="panelHead">
               <h2>Din data</h2>
               <span className="eyebrow">Dina rättigheter enligt GDPR</span>
             </div>
@@ -1604,9 +1675,23 @@ export default function KvarioApp() {
                 </div>
               ))}
             </div>
-            <button className="linkbtn" onClick={() => setVisaData(false)}>Fäll ihop</button>
+          <div className="lagringVal" style={{ marginTop: 4 }}>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Villkor och policy</div>
+            <div className="dataKnappar">
+              <button className="authAlt smal" onClick={() => setVisaVillkorFot((v) => !v)}>
+                {visaVillkorFot ? "Dölj användarvillkoren" : "Läs användarvillkoren"}
+              </button>
+              <button className="authAlt smal" onClick={() => setVisaPolicy((v) => !v)}>
+                {visaPolicy ? "Dölj integritetspolicyn" : "Läs integritetspolicyn"}
+              </button>
+            </div>
+            {state.villkor && (
+              <p className="modalNote" style={{ marginTop: 10 }}>
+                Godkända {new Date(state.villkor.at).toLocaleDateString("sv-SE")} (version {state.villkor.version}).
+              </p>
+            )}
           </div>
-        )}
+        </div>
 
         {visaPolicy && (
           <div className="panel">
@@ -1643,6 +1728,11 @@ export default function KvarioApp() {
             <button className="linkbtn" onClick={() => setVisaVillkorFot(false)}>Fäll ihop</button>
           </div>
         )}
+
+        </>)}
+
+        {/* ---------- AVDRAG ---------- */}
+        {flik === "avdrag" && (<>
 
         {/* AVDRAGSGUIDE */}
         {countryCode === "SE" && (
@@ -1686,13 +1776,12 @@ export default function KvarioApp() {
           </div>
         )}
 
+        </>)}
+
         <p className="foot">
           Valutakurser är fasta demokurser. Skattesiffrorna för Sverige gäller inkomstår 2026 och är
           uppskattningar för enskild firma — grundavdraget är approximerat och jobbskatteavdrag ingår inte.
-          {" · "}<button className="linkbtn" onClick={() => setVisaVillkorFot((v) => !v)}>Användarvillkor</button>
-          {" · "}<button className="linkbtn" onClick={() => setVisaPolicy((v) => !v)}>Integritetspolicy</button>
-          {" · "}<button className="linkbtn" onClick={() => setVisaData((v) => !v)}>Din data</button>
-          {state.villkor && <> · Godkända {new Date(state.villkor.at).toLocaleDateString("sv-SE")} (version {state.villkor.version})</>}
+          {" · "}<button className="linkbtn" onClick={() => setFlik("konto")}>Villkor, policy och din data</button>
           {hasAuth && session && <> · Inloggad som {session.user.email}</>}
         </p>
       </div>
@@ -1728,14 +1817,6 @@ export default function KvarioApp() {
                 <span className="bnote">Säg upp när du vill</span>
               </button>
             </div>
-            <label className="angerRad">
-              <input type="checkbox" checked={angerratt} onChange={(e) => setAngerratt(e.target.checked)} />
-              <span>
-                Jag vill att tjänsten aktiveras direkt, och förstår att min ångerrätt då upphör
-                när leveransen påbörjats. Prenumerationen kan ändå sägas upp när som helst.
-              </span>
-            </label>
-
             {checkoutFel && <p className="authError">{checkoutFel}</p>}
 
             <button className="add wide" onClick={startCheckout}>
@@ -1747,10 +1828,9 @@ export default function KvarioApp() {
               momsspecifikation via e-post direkt efter betalningen.
             </p>
             <p className="modalNote">
-              Kryssar du inte i rutan ovan behåller du full ångerrätt i 14 dagar — ångrar du dig
-              inom den tiden har du rätt till full återbetalning, även om du hunnit använda
-              tjänsten. Kryssar du i den gäller ångerrätten inte längre, men du kan ändå säga
-              upp prenumerationen när som helst.
+              Du har 14 dagars ångerrätt. Ångrar du dig inom den tiden får du pengarna
+              tillbaka, även om du hunnit använda tjänsten. Prenumerationen kan sägas
+              upp när som helst.
             </p>
             <button className="linkbtn center" onClick={() => setShowPaywall(false)}>Inte nu</button>
           </div>

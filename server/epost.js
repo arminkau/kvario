@@ -104,9 +104,10 @@ ${fakturaUrl ? `<tr><td style="padding:22px 32px 0">
            då upphör när leveransen påbörjats. Tjänsten aktiverades ${datum(betaldatum)}.
            Du kan fortfarande säga upp prenumerationen när som helst och behåller tillgången
            till ${datum(periodSlut)}.`
-        : `Som konsument har du 14 dagars ångerrätt från köpet. Kontakta ${SALJARE.epost}
-           om du vill utnyttja den. Prenumerationen kan sägas upp när som helst och du
-           behåller tillgången till ${datum(periodSlut)}.`}
+        : `Som konsument har du 14 dagars ångerrätt från köpet. Du begär återbetalning
+           direkt i appen under Konto, eller genom att kontakta ${SALJARE.epost}.
+           Prenumerationen kan sägas upp när som helst och du behåller tillgången
+           till ${datum(periodSlut)}.`}
     </p>
   </div>
 </td></tr>

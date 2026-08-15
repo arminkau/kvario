@@ -55,7 +55,7 @@ async function kravAdmin(req, res) {
    Frontend anropar denna när någon klickar "Fortsätt till betalning". */
 
 app.post("/checkout", express.json(), async (req, res) => {
-  const { userId, email, interval, angerratt } = req.body;
+  const { userId, email, interval } = req.body;
   if (!userId) return res.status(400).json({ error: "userId saknas" });
 
   const nyttCheckoutFörsök = async (customerId) => stripe.checkout.sessions.create({
@@ -66,10 +66,10 @@ app.post("/checkout", express.json(), async (req, res) => {
       quantity: 1,
     }],
     // Metadata följer med till webhooken så vi vet vem som betalade.
-    // Metadata följer med till webhooken. Samtycket till omedelbar
-    // leverans måste dokumenteras — utan det gäller 14 dagars
-    // ångerrätt även efter att kunden börjat använda tjänsten.
-    subscription_data: { metadata: { userId, angerratt: angerratt ? "ja" : "nej" } },
+    // Alla behåller full 14 dagars ångerrätt — vi ber aldrig någon
+    // avsäga sig den. Äldre prenumerationer kan ha "ja" sparat och
+    // läses fortfarande korrekt i invoice.paid.
+    subscription_data: { metadata: { userId, angerratt: "nej" } },
     // Bara namnet, inte hela adressen — den räcker för kvittot och
     // är den enda extra uppgiften som faktiskt behövs.
     custom_fields: [{
