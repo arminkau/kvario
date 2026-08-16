@@ -358,7 +358,14 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .villkorInline p{font-size:12.5px;line-height:1.7;color:var(--slate);margin:0}
 .villkorInline .linkbtn{margin-top:16px}
 
-.samtycke{position:sticky;top:0;z-index:40;margin:-26px -18px 20px;background:var(--surface);border-bottom:1px solid var(--line)}
+/* Nere, inte uppe. Överst sköt den ner hela sidan och var det första
+   man mötte; nertill ligger den utanför vägen och stör inte rubriken.
+   Skuggan behövs nu när den ligger ovanpå innehåll i stället för att
+   sluta tätt mot skärmkanten. Safe-area håller knapparna ovanför
+   hemindikatorn på iPhone. */
+.samtycke{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--surface);
+  border-top:1px solid var(--line);box-shadow:0 -6px 24px rgba(19,30,38,.10);
+  padding-bottom:env(safe-area-inset-bottom)}
 .samtyckeInner{max-width:1080px;margin:0 auto;padding:16px 20px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .samtyckeInner p{margin:0;flex:1;min-width:260px;font-size:12.5px;line-height:1.6;color:var(--slate)}
 .samtyckeInner strong{color:var(--ink)}

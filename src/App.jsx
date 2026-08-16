@@ -253,6 +253,35 @@ export default function KvarioApp() {
     try { await makeStorage(null).set("kvario:samtycke", JSON.stringify(v)); } catch {}
   };
 
+  /* Rutan ligger fast nertill och tar därför ingen plats i flödet.
+     Utan det här hamnar sidans sista rader bakom den — och på smal
+     skärm är rutan hög, eftersom både texten och knapparna radbryter.
+     Höjden mäts i stället för att gissas. */
+  const samtyckeRef = useRef(null);
+  useEffect(() => {
+    const el = samtyckeRef.current;
+    if (!el) { document.body.style.paddingBottom = ""; return; }
+    const satt = () => { document.body.style.paddingBottom = `${el.offsetHeight}px`; };
+    satt();
+
+    /* Två vägar med flit. Observern fångar allt, även när texten
+       radbryter av något annat skäl än att fönstret ändrat storlek.
+       resize och orientationchange täcker det vanliga fallet — att
+       telefonen vrids — och till skillnad från observern går de att
+       provköra, eftersom observern levereras i renderingsloopen. */
+    const obs = new ResizeObserver(satt);
+    obs.observe(el);
+    window.addEventListener("resize", satt);
+    window.addEventListener("orientationchange", satt);
+
+    return () => {
+      obs.disconnect();
+      window.removeEventListener("resize", satt);
+      window.removeEventListener("orientationchange", satt);
+      document.body.style.paddingBottom = "";
+    };
+  }, [samtycke]);
+
   /* ---------- Session ----------
      En redan använd eller utgången länk ger annars inget besked —
      man hamnar bara tillbaka på landningssidan utan förklaring,
@@ -833,9 +862,12 @@ export default function KvarioApp() {
     a.click();
   };
 
-  const SamtyckesRuta = () =>
+  /* Ett element, inte en komponent definierad här inne. Som komponent
+     fick den ny identitet vid varje omritning och monterades om, och
+     då pekade ref:en ovan på en nod som redan lämnat sidan. */
+  const samtyckesRuta =
     samtycke === null ? (
-      <div className="samtycke">
+      <div className="samtycke" ref={samtyckeRef}>
         <div className="samtyckeInner">
           <p>
             <strong>Vi lagrar bara det som behövs.</strong> Inloggningen kräver en sessionsnyckel
@@ -862,14 +894,14 @@ export default function KvarioApp() {
       return (
         <div className="kvar">
           <style>{CSS}</style>
-          <SamtyckesRuta />
+          {samtyckesRuta}
           <Landing onStart={() => setView("login")} />
         </div>
       );
     return (
       <div className="kvar">
         <style>{CSS}</style>
-        <SamtyckesRuta />
+        {samtyckesRuta}
         {authLinkError && (
           <div className="alert" style={{ maxWidth: 420, margin: "16px auto 0" }}>
             <span className="bang">!</span>
@@ -917,7 +949,7 @@ export default function KvarioApp() {
     return (
       <div className="kvar">
         <style>{CSS}</style>
-        <SamtyckesRuta />
+        {samtyckesRuta}
         <div className="onboard">
           <div className="obCard">
             <div className="brand"><h1>{MARKE}</h1></div>
@@ -1030,7 +1062,7 @@ export default function KvarioApp() {
         </div>
       )}
 
-      {!rapport && <SamtyckesRuta />}
+      {!rapport && samtyckesRuta}
       <div className="wrap" style={rapport ? { display: "none" } : undefined}>
 
         {/* HEADER */}
