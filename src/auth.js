@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Preferences } from "@capacitor/preferences";
+import { Browser } from "@capacitor/browser";
+import { App as NativeApp } from "@capacitor/app";
 
 /* ============================================================
    Inloggning
@@ -37,12 +39,14 @@ export const hasAuth = Boolean(url && key);
    kastar Capacitor "not implemented on android" och appen blir vit.
    Med kontrollen faller den istället tillbaka på localStorage — samma
    beteende som förut, tills användaren installerat den nya appen. */
-const iApp = (() => {
+const harPlugin = (namn) => {
   try {
     const C = window.Capacitor;
-    return C?.isNativePlatform?.() === true && C?.isPluginAvailable?.("Preferences") === true;
+    return C?.isNativePlatform?.() === true && C?.isPluginAvailable?.(namn) === true;
   } catch { return false; }
-})();
+};
+
+const iApp = harPlugin("Preferences");
 
 /* Läses av Konto-fliken. Att raden syns är också vårt enda kvitto på
    att bytet slog igenom — vi kan inte köra appen härifrån. */
@@ -153,13 +157,82 @@ export async function fetchOrdrar(userId) {
 }
 
 /* ---------- Google ----------
-   Slås på i Supabase under Authentication -> Providers. */
+   Slås på i Supabase under Authentication -> Providers.
+
+   I appen är det här krångligare än det ser ut. Google vägrar visa
+   sin inloggningsruta i en inbäddad webbvy, så inloggningen måste
+   ske utanför appen. Frågan är bara vart användaren kommer tillbaka.
+
+   Förut pekade redirectTo på webbplatsen. Då skapades sessionen i
+   webbläsaren i stället för i appen, och den som stängde appen och
+   öppnade igen var utloggad — trots att hen nyss loggat in.
+
+   Nu öppnas Google i en flik ovanpå appen, och svaret skickas till
+   se.kvario.app://auth, som Android lämnar tillbaka till appen. Se
+   intent-filter i AndroidManifest.xml.
+
+   APP_ADRESS måste finnas bland tillåtna Redirect URLs i Supabase,
+   annars vägrar Supabase skicka vidare dit. */
+const APP_ADRESS = "se.kvario.app://auth";
+
+/* Koden byts mot en session med den hemlighet som lades undan när
+   inloggningen startade (PKCE). Den ligger i appens lagring, vilket
+   är just därför resan måste sluta i appen och inte i webbläsaren —
+   där finns ingen hemlighet att byta med. */
+async function loginKlar(url) {
+  const fraga = url.includes("?") ? url.slice(url.indexOf("?") + 1) : "";
+  const p = new URLSearchParams(fraga);
+
+  const fel = p.get("error_description") || p.get("error");
+  if (fel) throw new Error(fel);
+
+  const code = p.get("code");
+  if (!code) return false;
+
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+  return true;
+}
+
 export async function signInWithGoogle() {
-  const { error } = await supabase.auth.signInWithOAuth({
+  const iAppMedFlik = harPlugin("Browser") && harPlugin("App");
+
+  if (!iAppMedFlik) {
+    // Webben, och äldre appar som saknar modulerna.
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: APP_ADRESS, skipBrowserRedirect: true },
   });
   if (error) throw error;
+
+  /* Lyssnaren sätts upp före fliken öppnas. Tvärtom finns en lucka
+     där svaret hinner komma innan någon lyssnar — kort, men den som
+     redan är inloggad hos Google kommer tillbaka nästan direkt. */
+  const lyssnare = await NativeApp.addListener("appUrlOpen", async ({ url }) => {
+    if (!url?.startsWith(APP_ADRESS)) return;
+    try {
+      await loginKlar(url);
+    } finally {
+      lyssnare.remove();
+      // Fliken stänger inte sig själv på alla telefoner.
+      try { await Browser.close(); } catch {}
+    }
+  });
+
+  try {
+    await Browser.open({ url: data.url });
+  } catch (e) {
+    lyssnare.remove();
+    throw e;
+  }
 }
 
 /* ---------- BankID ----------

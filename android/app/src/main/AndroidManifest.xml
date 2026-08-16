@@ -22,6 +22,28 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!--
+                Återresan från Google.
+
+                Inloggningen måste ske utanför appen — Google vägrar
+                visa sin inloggningsruta i en inbäddad webbvy. Utan
+                det här landade användaren därför på webbplatsen i
+                webbläsaren, där sessionen skapades i fel program.
+
+                Med schemat nedan skickas svaret till appen i stället.
+                singleTask ovan gör att den redan öppnade appen tas
+                fram, i stället för att en andra kopia startas.
+
+                Adressen måste också läggas till bland tillåtna
+                Redirect URLs i Supabase.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="se.kvario.app" android:host="auth" />
+            </intent-filter>
+
         </activity>
 
         <provider
