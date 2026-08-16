@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080" role="img"
+     aria-label="50 000 kr kom in. 21 311 kr är dina.">
+  <!-- Instagram och Facebook, kvadrat 1080x1080.
+       Tredje bilden i serien. De två andra visar aret och ett enskilt
+       kop; den har tar manaden och fragan som faktiskt gor ont: hur
+       mycket av det som ligger pa kontot ar redan lovat bort.
+
+       Siffrorna kommer ur appens egen skattemotor. En frilansare som
+       fakturerar 40 000 kr ex moms i manaden med 68 000 kr i arliga
+       kostnader far overskott 412 000, egenavgifter 89 517 och
+       inkomstskatt 66 750. Delat pa tolv blir det raderna nedan.
+
+       Uppstallningen ar medvetet en kvittolista och inte ett diagram.
+       De andra tva bilderna ar staplar, och tre staplar i rad hade
+       sett ut som samma inlagg tre ganger i ett floede. -->
+  <defs>
+    <style>
+      .rubrik { font-family:'Familjen Grotesk','Segoe UI',system-ui,sans-serif; font-weight:700; letter-spacing:-2.5px; }
+      .tal    { font-family:'IBM Plex Mono','Cascadia Mono',Consolas,monospace; font-weight:600; }
+      .etikett{ font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; font-weight:600; letter-spacing:1.5px; }
+      .brod   { font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; font-weight:400; }
+      .rad    { font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; font-weight:400; }
+    </style>
+  </defs>
+
+  <rect width="1080" height="1080" fill="#E4EBE7"/>
+
+  <!-- Market -->
+  <g transform="translate(80,68)">
+    <rect width="44" height="44" rx="10" fill="#131E26"/>
+    <rect x="10" y="8"  width="24" height="6"  fill="#3E5566"/>
+    <rect x="10" y="15" width="24" height="4"  fill="#63798A"/>
+    <rect x="10" y="20" width="24" height="4"  fill="#8A9CA8"/>
+    <rect x="10" y="25" width="24" height="11" fill="#B8862B"/>
+    <text x="60" y="32" class="rubrik" font-size="27" letter-spacing="-0.8" fill="#131E26">Kvario</text>
+  </g>
+
+  <!-- Pastaendet -->
+  <text x="80" y="248" class="rubrik" font-size="74" fill="#131E26">50 000 kr kom in</text>
+  <text x="80" y="330" class="rubrik" font-size="74" fill="#131E26">den här månaden.</text>
+  <text x="80" y="412" class="rubrik" font-size="74" fill="#8C6418">23 022 är statens.</text>
+
+  <!-- Kvittolistan -->
+  <line x1="80" y1="486" x2="1000" y2="486" stroke="#131E26" stroke-width="2"/>
+
+  <g transform="translate(0,542)">
+    <text x="80"   y="0" class="rad" font-size="31" fill="#3E5566">Moms till Skatteverket</text>
+    <text x="1000" y="0" class="tal" font-size="31" fill="#3E5566" text-anchor="end">−10 000</text>
+  </g>
+  <g transform="translate(0,606)">
+    <text x="80"   y="0" class="rad" font-size="31" fill="#3E5566">Skatt och egenavgifter</text>
+    <text x="1000" y="0" class="tal" font-size="31" fill="#3E5566" text-anchor="end">−13 022</text>
+  </g>
+  <g transform="translate(0,670)">
+    <text x="80"   y="0" class="rad" font-size="31" fill="#3E5566">Kostnader i firman</text>
+    <text x="1000" y="0" class="tal" font-size="31" fill="#3E5566" text-anchor="end">−5 667</text>
+  </g>
+
+  <line x1="80" y1="712" x2="1000" y2="712" stroke="#C6D3CD" stroke-width="2"/>
+
+  <!-- Restposten, den enda raden som far bara -->
+  <rect x="80" y="740" width="920" height="98" fill="#B8862B"/>
+  <text x="108" y="800" class="etikett" font-size="22" fill="#131E26">KVAR TILL DIG</text>
+  <text x="972" y="806" class="tal"     font-size="46" fill="#131E26" text-anchor="end">21 311</text>
+
+  <!-- Avslut -->
+  <text x="80" y="908" class="brod" font-size="28" fill="#4A5D68">Momsen var aldrig dina, och skatten kommer långt</text>
+  <text x="80" y="946" class="brod" font-size="28" fill="#4A5D68">efter att pengarna känts som dina. Kvario säger vad</text>
+  <text x="80" y="984" class="brod" font-size="28" fill="#4A5D68">du bör flytta undan — samma dag fakturan betalas.</text>
+
+  <text x="80" y="1038" class="etikett" font-size="20" fill="#131E26">14 DAGAR GRATIS · INGET KORT</text>
+  <text x="1000" y="1038" class="brod" font-size="17" fill="#8698A1" text-anchor="end">Exempel · enskild firma</text>
+</svg>

@@ -1,0 +1,174 @@
+KVARIO — TEXTER FÖR MARKNADSFÖRING
+Sammanställd 2026-08-16
+
+
+Alla siffror i det här dokumentet är räknade med appens egen
+skattemotor för inkomstår 2026, enskild firma, 32 % kommunalskatt
+och fulla egenavgifter. Ändras skattesatserna i tax.js gäller inte
+siffrorna längre — räkna om innan du återanvänder en gammal text.
+
+Priser: 99 kr/mån, eller 990 kr/år vilket blir 82 kr/mån (spara 17 %).
+Gratisplanen tar 5 fakturor. Pro har inget tak.
+
+
+===========================================================
+1. DITT URSPRUNGLIGA UTKAST
+===========================================================
+
+"Är du en freelancer eller egenföretagare och undrar hur mycket av
+pengarna som du omsätter går faktiskt i din ficka. Kvario är ett
+verktyg som hjälper dig att uppskata hur mycket pengar du har kvar
+efter att alla skatter och avgifter är betalda samt hjälper dig
+planera din ekonomi. För bara 99 kr i månad för du tillgång till
+rapporter, begränsat antal faktoror och en sammanställning på hur
+mycket pengar du har kvar och hur mycket du bör lägga undan på
+separat konto som ska till staten. Prova Kvario Pro i 14 dagar
+helt kostnadsfritt."
+
+Sparat som det stod. Tre saker ändrades i versionerna nedan:
+
+  - "begränsat antal fakturor" är tvärtom. Pro har inget tak,
+    gratisplanen är den som tar 5. Formuleringen sålde emot dig.
+  - Stavning: uppskata, faktoror, "för du tillgång".
+  - Frågan i öppningen behölls. Den är textens bästa del.
+
+
+===========================================================
+2. HUVUDINLÄGG (Facebook och Instagram, feed)
+===========================================================
+
+Vet du hur mycket av pengarna på kontot som faktiskt är dina?
+
+Du fakturerar 40 000 kr. Det känns som 40 000 kr. Men momsen var
+aldrig dina, egenavgifterna ska betalas, och skatten kommer i sin
+egen takt — långt efter att pengarna känts som dina.
+
+Kvario är byggt för frilansare och enskild firma. Du lägger in det
+du fakturerat och dina kostnader, och får svaret: vad som blir kvar
+när allt är betalt — och hur mycket du borde flytta till ett eget
+skattekonto redan nu.
+
+Ett typiskt år: 525 000 kr fakturerat blir 222 147 kr som är dina.
+Det är bättre att veta i mars än i maj året därpå.
+
+Kvario Pro — 99 kr/mån:
+▸ Obegränsat med fakturor och kostnader
+▸ Rapporter per kund, period och avdrag
+▸ Årsprognos som räknar om sig när du lägger in något nytt
+▸ Marginalräknaren: vad ett köp faktiskt kostar dig genom firman
+▸ Påminnelser om deklarationsdatum och momsredovisning
+
+Prova 14 dagar helt gratis. Inget kort.
+👉 [länk]
+
+Bild: inlagg-aret.svg
+
+
+===========================================================
+3. STORY (kort, för svep upp)
+===========================================================
+
+Du fakturerade 40 000 kr.
+Hur mycket är dina?
+
+Momsen är inte dina. Skatten är inte dina.
+Egenavgifterna är inte dina.
+
+Kvario räknar ut vad som blir kvar — och hur
+mycket du bör lägga undan nu.
+
+För frilansare och enskild firma. 99 kr/mån.
+14 dagar gratis. Inget kort.
+⬆️ Svep upp
+
+Bild: inlagg-undanlagt.svg
+
+
+===========================================================
+4. LÄGG UNDAN (feed, den hårdaste vinkeln)
+===========================================================
+
+50 000 kr kom in den här månaden.
+23 022 av dem är statens.
+
+Så ser en helt vanlig månad ut för en frilansare som fakturerar
+50 000 kr inklusive moms:
+
+  Moms till Skatteverket      −10 000
+  Skatt och egenavgifter      −13 022
+  Kostnader i firman           −5 667
+  ────────────────────────────────────
+  Kvar till dig                21 311
+
+Det som gör ont är inte summan. Det är att den kommer långt efter
+att pengarna känts som dina.
+
+Kvario säger vad du bör flytta undan — samma dag fakturan betalas.
+Sedan kan du göra av med resten utan att fundera.
+
+För frilansare och enskild firma. 14 dagar gratis, inget kort.
+👉 [länk]
+
+Bild: inlagg-undanlagt.svg
+
+
+===========================================================
+5. VAD KOSTAR KÖPET (feed, för den som redan driver firma)
+===========================================================
+
+En dator för 12 000 kr. Vad kostar den dig?
+
+Genom firman: 5 373 kr.
+Privat: du måste fakturera 21 440 kr för att ha 12 000 kvar.
+
+Fyra gånger skillnaden, på exakt samma dator.
+
+Momsen får du tillbaka, och vinsten köpet äter upp hade ändå
+beskattats. Kvario har en räknare som visar det för vilket belopp
+som helst, med din egen marginalskatt.
+
+99 kr/mån. 14 dagar gratis, inget kort.
+👉 [länk]
+
+Bild: inlagg-kop.svg
+Siffrorna gäller vid 44 % marginal.
+
+
+===========================================================
+6. KORTA VARIANTER (annonser, bildtext, bio)
+===========================================================
+
+En rad:
+  Hur mycket av pengarna på kontot är faktiskt dina?
+
+Två rader:
+  Momsen är inte dina. Skatten är inte dina.
+  Kvario räknar ut vad som blir kvar.
+
+Bio:
+  Ser vad frilansare och enskilda firmor får behålla.
+  14 dagar gratis.
+
+Annonsrubrik (kort nog för Meta):
+  525 000 kr in. 222 147 kr dina.
+
+Prisvinkel:
+  Från 82 kr/mån vid årsabonnemang.
+
+
+===========================================================
+ORDVAL — LÄS INNAN DU SKRIVER OM NÅGOT
+===========================================================
+
+"Uppskattar", inte "räknar ut exakt". Slutlig skatt avgörs av val
+du gör i deklarationen. Ett löfte om exakthet är lätt att motbevisa
+och behövs inte: problemet du säljer mot är att folk inte har en
+aning, inte att de saknar tre decimaler.
+
+Skriv aldrig ut ett belopp som inte kommer ur appen. Det finns ett
+skript i verktyg/ som räknar, och landningssidan visar årsexemplet.
+Säger bild och sajt olika saker syns det direkt.
+
+"Frilansare och enskild firma" — inte aktiebolag. Appen räknar bara
+enskild firma, och den som köper på fel förväntan begär pengarna
+tillbaka.

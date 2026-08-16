@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Kvario · bilder för Meta</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Instagram och Facebook tar inte emot SVG. Bilderna ritas darfor upp
+  pa en canvas i full storlek och laddas ner som PNG harifran.
+
+  Sidan ligger i public/ och nas via utvecklingsservern:
+      npm run dev  ->  http://localhost:5173/marknadsforing/
+
+  Den foljer med i bygget, vilket ar med flit: da gar den att na aven
+  fran den publicerade sajten om du sitter vid en annan dator.
+-->
+<style>
+  :root {
+    --botten: #E4EBE7; --blackk: #131E26; --dampad: #4A5D68;
+    --linje: #C6D3CD; --massing: #B8862B; --papper: #FAFCFB;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 48px 32px 96px; background: var(--botten); color: var(--blackk);
+    font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  }
+  h1 { font-family: 'Familjen Grotesk', 'Segoe UI', sans-serif; font-size: 34px; letter-spacing: -1px; margin: 0 0 6px; }
+  .ingress { color: var(--dampad); max-width: 62ch; line-height: 1.55; margin: 0 0 40px; }
+  .rutnat { display: grid; gap: 40px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); max-width: 1200px; }
+  figure { margin: 0; background: var(--papper); border: 1px solid var(--linje); border-radius: 14px; overflow: hidden; }
+  .duk { width: 100%; aspect-ratio: 1; display: block; background: var(--papper); }
+  figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--linje); }
+  .namn { font-size: 14px; font-weight: 600; }
+  .matt { font-size: 12px; color: var(--dampad); font-variant-numeric: tabular-nums; }
+  button {
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    background: var(--massing); color: var(--blackk); border: none;
+    border-radius: 8px; padding: 9px 15px;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:focus-visible { outline: 3px solid var(--blackk); outline-offset: 2px; }
+  .fel { color: #8C2B18; font-size: 13px; padding: 0 16px 14px; }
+</style>
+
+<h1>Bilder för Meta</h1>
+<p class="ingress">
+  Instagram och Facebook tar inte emot SVG. Klicka Ladda ner så får du en PNG i
+  1080&nbsp;×&nbsp;1080, som är rätt format för både inlägg och story-bakgrund.
+  Ser texten konstig ut saknar den här datorn typsnitten — bilden blir ändå rätt,
+  den ritas med de typsnitt som finns.
+</p>
+
+<div class="rutnat" id="rutnat"></div>
+
+<script>
+  const BILDER = [
+    { fil: "inlagg-aret.svg",     namn: "Året som gick" },
+    { fil: "inlagg-kop.svg",      namn: "Vad kostar köpet" },
+    { fil: "inlagg-undanlagt.svg", namn: "Lägg undan" },
+  ];
+
+  const STORLEK = 1080;
+
+  for (const bild of BILDER) {
+    const figur = document.createElement("figure");
+    const duk = document.createElement("canvas");
+    duk.className = "duk";
+    duk.width = duk.height = STORLEK;
+
+    const text = document.createElement("figcaption");
+    text.innerHTML =
+      '<span class="namn">' + bild.namn + '</span>' +
+      '<span class="matt">1080 × 1080</span>';
+
+    const knapp = document.createElement("button");
+    knapp.textContent = "Ladda ner PNG";
+    text.appendChild(knapp);
+
+    figur.append(duk, text);
+    document.getElementById("rutnat").appendChild(figur);
+
+    rita(bild, duk, knapp, figur);
+  }
+
+  async function rita(bild, duk, knapp, figur) {
+    try {
+      /* SVG:n hamtas som text och görs om till en blob-URL. Bilden far
+         inte peka pa nagot utanfor sig sjalv — da gar canvasen inte att
+         exportera. Vara SVG:er har bara inbakad CSS, sa det gar bra. */
+      const svar = await fetch(bild.fil);
+      if (!svar.ok) throw new Error("hittar inte " + bild.fil);
+      const kalla = await svar.text();
+
+      const blob = new Blob([kalla], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const img = new Image();
+      await new Promise((klar, fel) => {
+        img.onload = klar;
+        img.onerror = () => fel(new Error("kunde inte rita " + bild.fil));
+        img.src = url;
+      });
+
+      const ctx = duk.getContext("2d");
+      ctx.fillStyle = "#FAFCFB";
+      ctx.fillRect(0, 0, STORLEK, STORLEK);
+      ctx.drawImage(img, 0, 0, STORLEK, STORLEK);
+      URL.revokeObjectURL(url);
+
+      knapp.onclick = () => {
+        duk.toBlob((png) => {
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(png);
+          a.download = bild.fil.replace(/\.svg$/, "") + "-1080.png";
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }, "image/png");
+      };
+    } catch (e) {
+      knapp.disabled = true;
+      const p = document.createElement("p");
+      p.className = "fel";
+      p.textContent = e.message;
+      figur.appendChild(p);
+    }
+  }
+</script>
