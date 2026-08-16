@@ -175,25 +175,52 @@ export async function fetchOrdrar(userId) {
    annars vägrar Supabase skicka vidare dit. */
 const APP_ADRESS = "se.kvario.app://auth";
 
-/* Koden byts mot en session med den hemlighet som lades undan när
-   inloggningen startade (PKCE). Den ligger i appens lagring, vilket
-   är just därför resan måste sluta i appen och inte i webbläsaren —
-   där finns ingen hemlighet att byta med. */
+/* Svaret kan se ut på två sätt, och det är inte vi som väljer vilket.
+
+   supabase-js kör flowType "implicit" som standard. Då kommer nycklarna
+   tillbaka i adressens fragment, efter #, och sätts direkt. Med "pkce"
+   kommer i stället en engångskod som byts mot en session.
+
+   Båda hanteras här. Antog man bara det ena blev resultatet att appen
+   tog emot svaret och tyst slängde det — vilket är svårare att upptäcka
+   än ett fel, eftersom ingenting alls händer. */
 async function taEmotSvar(url) {
   if (!url?.startsWith(APP_ADRESS)) return false;
 
-  const fraga = url.includes("?") ? url.slice(url.indexOf("?") + 1) : "";
-  const p = new URLSearchParams(fraga);
+  const delEfter = (tecken) =>
+    url.includes(tecken) ? url.slice(url.indexOf(tecken) + 1) : "";
 
-  const code = p.get("code");
-  if (!code) return false;
+  // Fragmentet först: ligger det ett # i adressen hör frågedelen till
+  // det som står före, inte efter.
+  const fragment = new URLSearchParams(delEfter("#"));
+  const fraga = new URLSearchParams(
+    (url.includes("?") ? url.slice(url.indexOf("?") + 1) : "").split("#")[0]
+  );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) throw error;
+  const fel = fragment.get("error_description") || fragment.get("error")
+           || fraga.get("error_description") || fraga.get("error");
+  if (fel) throw new Error(fel);
 
-  // Fliken stänger inte sig själv på alla telefoner.
-  try { await Browser.close(); } catch {}
-  return true;
+  const stang = async () => { try { await Browser.close(); } catch {} };
+
+  const access_token = fragment.get("access_token");
+  const refresh_token = fragment.get("refresh_token");
+  if (access_token && refresh_token) {
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error) throw error;
+    await stang();
+    return true;
+  }
+
+  const code = fraga.get("code");
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    await stang();
+    return true;
+  }
+
+  return false;
 }
 
 /* Lyssnaren sätts upp en gång, inte per inloggning.
@@ -249,15 +276,24 @@ export async function signInWithGoogle() {
     return;
   }
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: APP_ADRESS, skipBrowserRedirect: true },
-  });
-  if (error) throw error;
-  if (!data?.url) throw new Error("Supabase gav ingen inloggningsadress.");
+  /* Steget skrivs ut i felet. Inloggningen sker på en telefon vi inte
+     kan felsöka härifrån, och skillnaden mellan "Supabase svarade
+     inte" och "fliken gick inte att öppna" avgör vad som ska lagas. */
+  let steg = "hämta adressen från Supabase";
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: APP_ADRESS, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+    if (!data?.url) throw new Error("inget svar");
 
-  // Svaret tas emot av lyssnaren ovan, som redan står och väntar.
-  await Browser.open({ url: data.url });
+    steg = "öppna webbfliken";
+    // Svaret tas emot av lyssnaren ovan, som redan står och väntar.
+    await Browser.open({ url: data.url });
+  } catch (e) {
+    throw new Error(`Kunde inte ${steg}: ${e?.message || e}`);
+  }
 }
 
 /* ---------- BankID ----------
