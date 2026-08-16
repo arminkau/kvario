@@ -47,7 +47,9 @@ const INKOMSTAR = new Date().getFullYear();
 
 const FLIKAR = [
   ["oversikt", "Översikt"],
-  ["fakturor", "Fakturor"],
+  /* Etiketten säger "Fakturerat" som rubriken inuti — det är pengar in,
+     inte en bunt papper. Nyckeln får heta som förr, den ligger sparad. */
+  ["fakturor", "Fakturerat"],
   ["verktyg", "Verktyg"],
   ["avdrag", "Avdrag"],
   ["rapporter", "Rapporter"],
@@ -505,6 +507,7 @@ export default function KvarioApp() {
   /* ---------- Återkommande fakturor och kostnader ----------
      Ingen bakgrundsjobb — bara ett engångsklick per ny månad, spärrat
      mot dubbletter med en enda "senast tillagd"-månad i state. */
+  const idag = () => new Date().toISOString().slice(0, 10);
   const manadNyckel = (dt = new Date()) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
   const aterkommandeInv = invoices.filter((i) => i.recurring);
   const aterkommandeCost = costs.filter((c) => c.recurring);
@@ -512,9 +515,12 @@ export default function KvarioApp() {
     (aterkommandeInv.length > 0 || aterkommandeCost.length > 0) &&
     state.senastAterkommandeManad !== manadNyckel();
 
+  /* Kopiorna dateras i dag, inte som originalet. Utan det ärvde en hyra
+     som lades in i januari sitt januaridatum varje gång den lades till,
+     och hamnade i fel månad i periodrapporten. */
   const laggTillAterkommande = () => {
-    const nyaInv = aterkommandeInv.map((i, idx) => ({ ...i, id: Date.now() + idx, paid: false }));
-    const nyaCost = aterkommandeCost.map((c, idx) => ({ ...c, id: Date.now() + 1000 + idx }));
+    const nyaInv = aterkommandeInv.map((i, idx) => ({ ...i, id: Date.now() + idx, paid: false, datum: idag() }));
+    const nyaCost = aterkommandeCost.map((c, idx) => ({ ...c, id: Date.now() + 1000 + idx, datum: idag() }));
     patch({
       invoices: [...invoices, ...nyaInv],
       costs: [...costs, ...nyaCost],
@@ -601,7 +607,6 @@ export default function KvarioApp() {
      Datum förifylls med dagens och går att ändra. Utan datum går
      varken momsperiod eller årsjämförelse att räkna fram, och äldre
      poster utan datum räknas som innevarande år. */
-  const idag = () => new Date().toISOString().slice(0, 10);
   const [inv, setInv] = useState({ client: "", amount: "", vat: 25, currency: "SEK", typ: "se", recurring: false, datum: idag() });
   const [cost, setCost] = useState({ label: "", amount: "", vat: 25, currency: "SEK", recurring: false, datum: idag() });
   const [emp, setEmp] = useState({ name: "", monthly: "", fodelsear: "", vaxa: false });
@@ -1665,8 +1670,15 @@ export default function KvarioApp() {
           <div className="alert">
             <span className="bang">!</span>
             <p>
-              <strong>{aterkommandeInv.length + aterkommandeCost.length} återkommande post{aterkommandeInv.length + aterkommandeCost.length === 1 ? "" : "er"} för den här månaden.</strong>{" "}
-              Lägg till samma fakturor och kostnader som är märkta återkommande, med obetald status på fakturorna.{" "}
+              <strong>
+                {aterkommandeInv.length + aterkommandeCost.length} återkommande post{aterkommandeInv.length + aterkommandeCost.length === 1 ? "" : "er"} väntar
+                på {new Date().toLocaleDateString("sv-SE", { month: "long" })}.
+              </strong>{" "}
+              {aterkommandeInv.length > 0 && `${aterkommandeInv.length} fakturerat`}
+              {aterkommandeInv.length > 0 && aterkommandeCost.length > 0 && " och "}
+              {aterkommandeCost.length > 0 && `${aterkommandeCost.length} kostnad${aterkommandeCost.length === 1 ? "" : "er"}`}
+              {" "}läggs till med dagens datum, fakturorna som obetalda. Rutan försvinner sedan
+              till nästa månad.{" "}
               <button className="linkbtn" onClick={laggTillAterkommande}>Lägg till nu</button>
             </p>
           </div>
@@ -1749,6 +1761,14 @@ export default function KvarioApp() {
               </label>
               <button className="add" onClick={addInvoice}>Lägg till</button>
             </div>
+
+            {/* Kryssrutan hade bara en tooltip, och den visas aldrig på
+                mobil. Förklaringen står därför framme. */}
+            <p className="foot">
+              <strong>Återkommande</strong> är för det du fakturerar varje månad — ett löpande
+              uppdrag, ett supportavtal. Posten kopieras inte av sig själv: när en ny månad
+              börjar dyker en knapp upp här som lägger till allihop på en gång, som obetalda.
+            </p>
           </div>
 
           <div className="panel">
@@ -1820,6 +1840,12 @@ export default function KvarioApp() {
               </label>
               <button className="add" onClick={addCost}>Lägg till</button>
             </div>
+
+            <p className="foot">
+              <strong>Återkommande</strong> är för utgifter som ser likadana ut varje månad —
+              hyra, försäkring, abonnemang. Knappen som lägger till dem visas under Fakturerat
+              när en ny månad börjat.
+            </p>
 
             {costHint && countryCode === "SE" && (
               <div className="hint">
