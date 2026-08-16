@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080" role="img"
-     aria-label="Du fakturerade 525 000 kr. 222 147 blev dina.">
+     aria-label="Du fakturerade 525 000 kr. 222 147 kr fick du behålla.">
   <!-- Instagram och Facebook, kvadrat 1080x1080.
        Siffrorna är räknade med appens egen skattemotor och är samma
        exempel som landningssidan visar — bild och sajt ska aldrig
@@ -32,7 +32,9 @@
   <text x="80" y="290" class="rubrik" font-size="76" fill="#131E26">Du fakturerade</text>
   <text x="80" y="374" class="rubrik" font-size="76" fill="#131E26">525 000 kr i fjol.</text>
 
-  <text x="80" y="486" class="rubrik" font-size="76" fill="#8C6418">222 147 blev dina.</text>
+  <!-- "blev dina" var for vardagligt, och upprepade dessutom
+       etiketten KVAR TILL DIG som star direkt under stapeln. -->
+  <text x="80" y="486" class="rubrik" font-size="76" fill="#8C6418">222 147 kr fick du behålla.</text>
 
   <!-- Stapeln: samma uppdelning som appen visar -->
   <g transform="translate(0,606)">
