@@ -43,6 +43,11 @@ export const RAPPORTER = [
     namn: "Period för period",
     beskrivning: "Månad och kvartal jämfört, så att säsong och utveckling syns.",
   },
+  {
+    id: "resultat",
+    namn: "Resultatrapport",
+    beskrivning: "Intäkter minus kostnader i samma ordning som NE-bilagan, fram till det som deklareras.",
+  },
 ];
 
 /* Poster utan datum är inlagda innan datumfältet fanns. De räknas
@@ -110,6 +115,18 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
   const kunder = Object.values(perKund)
     .map((k) => ({ ...k, andel: summaKund ? (k.belopp / summaKund) * 100 : 0 }))
     .sort((a, b) => b.belopp - a.belopp);
+
+  /* ---------- Resultatrapport ----------
+     Momsfritt och momspliktigt hålls isär, för det är den delningen
+     NE-bilagan gör. Export och försäljning till företag i EU är
+     momsfri omsättning; försäljning till privatpersoner i EU bär
+     svensk moms upp till OSS-tröskeln och hör därför till den
+     momspliktiga raden. */
+  const momsfriaTyper = new Set(["export", "eub2b"]);
+  const intaktMomsfri = invoices
+    .filter((i) => momsfriaTyper.has(i.typ))
+    .reduce((s, i) => s + iSek(i), 0);
+  const intaktMomspliktig = d.revenue - intaktMomsfri;
 
   /* ---------- Per månad och år ---------- */
   const perManad = {};
@@ -491,6 +508,130 @@ export default function Rapport({ typ, state, form, d, personal, forecast, owed,
             </>
           )}
         </section>
+      )}
+
+      {/* ---------- RESULTATRAPPORT ---------- */}
+      {typ === "resultat" && d.tax && (
+        <>
+          <section>
+            <h2>Resultaträkning</h2>
+            <Forklaring>
+              Verksamhetens intäkter minus dess kostnader. Beloppen är exklusive moms
+              {momsreg
+                ? " — momsen är inte en intäkt, du samlar bara in den åt staten."
+                : ". Du är inte momsregistrerad, så momsen på dina inköp får inte dras av utan ingår i kostnaderna."}
+            </Forklaring>
+
+            <Rad etikett="Försäljning och utfört arbete" belopp={intaktMomspliktig}
+                 not={momsreg ? "Momspliktig omsättning" : null} />
+            {intaktMomsfri > 0 && (
+              <Rad etikett="Momsfria intäkter" belopp={intaktMomsfri}
+                   not="Export och försäljning till företag i EU" />
+            )}
+            <Rad etikett="Summa intäkter" belopp={d.revenue} stark />
+
+            <div style={{ marginTop: 18 }}>
+              <Rad etikett="Kostnader i verksamheten" belopp={d.costBase} negativ
+                   not={momsreg ? "Exklusive moms" : "Inklusive moms, som inte får dras av"} />
+              {/* Summeringsraden bara när det finns något att summera.
+                  Utan personal blir den en identisk upprepning av
+                  raden ovanför. */}
+              {d.tax.payroll > 0 && (
+                <>
+                  <Rad etikett="Löner till anställd personal" belopp={d.tax.payroll} negativ />
+                  <Rad etikett="Arbetsgivaravgifter" belopp={d.tax.agaPersonal} negativ />
+                  <Rad etikett="Summa kostnader"
+                       belopp={d.costBase + d.tax.payroll + d.tax.agaPersonal} negativ stark />
+                </>
+              )}
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <Rad etikett="Årets resultat" belopp={d.tax.overskott} stark />
+            </div>
+            <Forklaring>
+              Här slutar resultaträkningen. Egenavgifter och inkomstskatt hör inte hemma
+              bland kostnaderna ovan — i en enskild firma betalar du dem privat, inte
+              verksamheten. Det är därför årets resultat är större än vad du får behålla.
+            </Forklaring>
+          </section>
+
+          {(d.tax.pension > 0 || d.tax.rantefordelning > 0 || d.tax.periodiseringsfond > 0) && (
+            <section>
+              <h2>Skattemässiga justeringar</h2>
+              <Forklaring>
+                Poster som ändrar vad som beskattas utan att vara kostnader i verksamheten.
+                Pengarna finns kvar — de flyttas bara till en annan tid eller ett annat
+                inkomstslag.
+              </Forklaring>
+              {d.tax.pension > 0 && (
+                <Rad etikett="Avdrag för eget pensionssparande" belopp={d.tax.pension} negativ
+                     not="Ditt, men låst till pensionen" />
+              )}
+              {d.tax.rantefordelning > 0 && (
+                <Rad etikett="Positiv räntefördelning" belopp={d.tax.rantefordelning} negativ
+                     not={`Flyttas till inkomst av kapital och beskattas med 30 % i stället för din marginalskatt`} />
+              )}
+              {d.tax.periodiseringsfond > 0 && (
+                <Rad etikett="Avsättning till periodiseringsfond" belopp={d.tax.periodiseringsfond} negativ
+                     not="Kvar i firman, beskattas när fonden återförs" />
+              )}
+              <Rad etikett="Resultat efter justeringar" belopp={d.tax.netto} stark />
+            </section>
+          )}
+
+          <section>
+            <h2>Överskott att deklarera</h2>
+            <Forklaring>
+              Innan egenavgifterna är kända dras ett schablonavdrag på{" "}
+              {Math.round(d.tax.schablon * 100)} % — annars skulle avgiften behöva räknas
+              på sig själv. Vid deklarationen ersätts schablonen av de verkliga avgifterna.
+            </Forklaring>
+            <Rad etikett="Resultat före egenavgifter" belopp={d.tax.netto} />
+            <Rad etikett="Egenavgifter" belopp={d.tax.egenavgifter} negativ
+                 not={d.tax.lines.find((l) => l.key === "egenavgifter")?.note} />
+            <Rad etikett="Överskott av näringsverksamhet" belopp={d.tax.naringsinkomst} stark />
+            <Forklaring>
+              Det är den summan som förs över till din inkomstdeklaration och beskattas
+              som förvärvsinkomst.
+            </Forklaring>
+          </section>
+
+          <section>
+            <h2>Vad du får behålla</h2>
+            <Rad etikett="Överskott av näringsverksamhet" belopp={d.tax.naringsinkomst} />
+            <Rad etikett="Inkomstskatt" belopp={d.tax.inkomstskatt} negativ
+                 not={d.tax.lines.find((l) => l.key === "inkomstskatt")?.note} />
+            {d.tax.rfSkatt > 0 && (
+              <Rad etikett="Skatt på räntefördelningen" belopp={d.tax.rfSkatt} negativ
+                   not="30 % kapitalskatt" />
+            )}
+            {d.tax.rantefordelning > 0 && (
+              <Rad etikett="Räntefördelat belopp tillbaka" belopp={d.tax.rantefordelning}
+                   not="Beskattat som kapital ovan, men fortfarande dina pengar" />
+            )}
+            <Rad etikett={STAPEL.kvarTillDig} belopp={d.tax.kvar} stark />
+            {d.tax.periodiseringsfond > 0 && (
+              <Forklaring>
+                Utöver detta ligger {kr(d.tax.periodiseringsfond)} kr kvar i firman som
+                periodiseringsfond. De pengarna är dina, men obeskattade — de ska tas upp
+                senast när fonden återförs.
+              </Forklaring>
+            )}
+          </section>
+
+          <section>
+            <h2>Att stämma av mot NE-bilagan</h2>
+            <Forklaring>
+              Uppställningen följer samma ordning som NE-bilagan, men rutnumren ändras
+              mellan åren och kontrolleras därför inte här. Intäkterna och kostnaderna
+              ovan motsvarar bokföringens, medan justeringarna hör till bilagans
+              skattemässiga del. Har du avskrivningar på inventarier, ränteintäkter,
+              förmåner eller sparade underskott finns de inte med — Kvario håller reda
+              på fakturor och kostnader, inte på ett fullständigt bokslut.
+            </Forklaring>
+          </section>
+        </>
       )}
 
       <footer className="rFot">

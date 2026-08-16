@@ -369,6 +369,12 @@ const ENSKILD = {
     return {
       overskott, kvar, lines, payroll, agaPersonal,
       statlig: med.statlig, tjanstedel: 0,
+      /* Mellanstegen fram till det som faktiskt deklareras. Resultat-
+         rapporten visar dem rad för rad och ska inte räkna om dem
+         själv — två uppställningar av samma kedja hade förr eller
+         senare börjat säga olika saker. */
+      pension, netto, schablon, egenavgifter, naringsinkomst,
+      inkomstskatt: t.skatt,
       rantefordelning, rfSkatt, rfSats, rfMojlig, kapitalunderlag,
       periodiseringsfond, pfTak,
       ar: v.ar, saknasAr: v.saknasAr, kontrollerad: v.kontrollerad,
