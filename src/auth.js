@@ -179,19 +179,41 @@ const APP_ADRESS = "se.kvario.app://auth";
    inloggningen startade (PKCE). Den ligger i appens lagring, vilket
    är just därför resan måste sluta i appen och inte i webbläsaren —
    där finns ingen hemlighet att byta med. */
-async function loginKlar(url) {
+async function taEmotSvar(url) {
+  if (!url?.startsWith(APP_ADRESS)) return false;
+
   const fraga = url.includes("?") ? url.slice(url.indexOf("?") + 1) : "";
   const p = new URLSearchParams(fraga);
-
-  const fel = p.get("error_description") || p.get("error");
-  if (fel) throw new Error(fel);
 
   const code = p.get("code");
   if (!code) return false;
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) throw error;
+
+  // Fliken stänger inte sig själv på alla telefoner.
+  try { await Browser.close(); } catch {}
   return true;
+}
+
+/* Lyssnaren sätts upp en gång, inte per inloggning.
+
+   Skälet är att svaret inte alltid kommer till en app som står och
+   väntar. Ligger Google framme en stund kan Android hinna döda appen
+   bakom, och då startar den om när svaret kommer — utan att någon
+   lyssnare hunnit registreras. Adressen ligger i stället i
+   startintentet, och getLaunchUrl är det enda stället den finns.
+
+   Att båda vägarna leder till samma funktion gör att en inloggning
+   som råkar komma tillbaka på det ena sättet inte beter sig
+   annorlunda än den som kommer tillbaka på det andra. */
+if (hasAuth && harPlugin("App")) {
+  NativeApp.addListener("appUrlOpen", ({ url }) => {
+    taEmotSvar(url).catch(() => {});
+  });
+  NativeApp.getLaunchUrl()
+    .then((r) => taEmotSvar(r?.url))
+    .catch(() => {});
 }
 
 export async function signInWithGoogle() {
@@ -212,27 +234,10 @@ export async function signInWithGoogle() {
     options: { redirectTo: APP_ADRESS, skipBrowserRedirect: true },
   });
   if (error) throw error;
+  if (!data?.url) throw new Error("Supabase gav ingen inloggningsadress.");
 
-  /* Lyssnaren sätts upp före fliken öppnas. Tvärtom finns en lucka
-     där svaret hinner komma innan någon lyssnar — kort, men den som
-     redan är inloggad hos Google kommer tillbaka nästan direkt. */
-  const lyssnare = await NativeApp.addListener("appUrlOpen", async ({ url }) => {
-    if (!url?.startsWith(APP_ADRESS)) return;
-    try {
-      await loginKlar(url);
-    } finally {
-      lyssnare.remove();
-      // Fliken stänger inte sig själv på alla telefoner.
-      try { await Browser.close(); } catch {}
-    }
-  });
-
-  try {
-    await Browser.open({ url: data.url });
-  } catch (e) {
-    lyssnare.remove();
-    throw e;
-  }
+  // Svaret tas emot av lyssnaren ovan, som redan står och väntar.
+  await Browser.open({ url: data.url });
 }
 
 /* ---------- BankID ----------

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signInWithGoogle, signInWithPassword, signUpWithPassword, skickaLosenordsAterstallning } from "./auth";
 import { TESTKONTON } from "./testdata";
 
@@ -34,6 +34,35 @@ export default function Login({ onBack, onTestkonto }) {
       setStatus("idle");
     }
   };
+
+  /* Knappen hade tidigare signInWithGoogle direkt som onClick. Den är
+     asynkron, så varje fel blev en oupptäckt promise-rejektion — och
+     användaren såg ingenting alls hända. Nu syns felet.
+
+     Egen status, inte samma som formuläret ovan. I appen öppnas Google
+     i en flik ovanpå, och den här vyn ligger kvar under tiden. */
+  const [googlePagar, setGooglePagar] = useState(false);
+
+  const googleLogin = async () => {
+    setGooglePagar(true);
+    setError("");
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      setError(e?.message || "Kunde inte öppna Google. Försök igen om en stund.");
+      setGooglePagar(false);
+    }
+  };
+
+  /* Backar man ur Google-fliken utan att logga in är man tillbaka här
+     med en knapp som annars hade legat låst för gott. Lyckades det är
+     den här vyn redan utbytt, så det finns inget att återställa. */
+  useEffect(() => {
+    if (!googlePagar) return;
+    const vakna = () => { if (document.visibilityState === "visible") setGooglePagar(false); };
+    document.addEventListener("visibilitychange", vakna);
+    return () => document.removeEventListener("visibilitychange", vakna);
+  }, [googlePagar]);
 
   const glomtLosenord = async () => {
     if (!giltigEpost) return setError("Skriv din e-postadress ovan först.");
@@ -136,8 +165,8 @@ export default function Login({ onBack, onTestkonto }) {
 
         <div className="authOr"><span>eller</span></div>
 
-        <button className="authAlt" onClick={signInWithGoogle}>
-          Fortsätt med Google
+        <button className="authAlt" onClick={googleLogin} disabled={googlePagar}>
+          {googlePagar ? "Öppnar Google…" : "Fortsätt med Google"}
         </button>
 
         {onBack && <button className="linkbtn center" onClick={onBack}>Tillbaka</button>}
