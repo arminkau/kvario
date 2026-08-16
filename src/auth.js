@@ -216,11 +216,31 @@ if (hasAuth && harPlugin("App")) {
     .catch(() => {});
 }
 
-export async function signInWithGoogle() {
-  const iAppMedFlik = harPlugin("Browser") && harPlugin("App");
+/* Sant i appen oavsett vilka moduler den har. Skilt från harPlugin
+   för att kunna säga varför något inte går, i stället för att tyst
+   välja en väg som ändå inte kan fungera. */
+export const iNativApp = (() => {
+  try { return window.Capacitor?.isNativePlatform?.() === true; }
+  catch { return false; }
+})();
 
-  if (!iAppMedFlik) {
-    // Webben, och äldre appar som saknar modulerna.
+export const googleGarIAppen = harPlugin("Browser") && harPlugin("App");
+
+export async function signInWithGoogle() {
+  /* En äldre app hamnar annars på webbvägen, och den kan inte
+     fungera här: den skickar webbvyn till Google, som vägrar visa
+     sin inloggning i en inbäddad vy. Resultatet blir en knapp som
+     inte gör något — vilket är precis vad som gick att missta för
+     ett fel i koden. */
+  if (iNativApp && !googleGarIAppen) {
+    throw new Error(
+      "Den här versionen av appen kan inte logga in med Google. " +
+      "Installera den senaste appen, eller logga in med e-post och lösenord så länge."
+    );
+  }
+
+  if (!googleGarIAppen) {
+    // Webben.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin },

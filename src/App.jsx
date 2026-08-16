@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -2072,6 +2072,13 @@ export default function KvarioApp() {
             <p className="foot" style={{ marginTop: 14 }}>
               Du förblir inloggad tills du loggar ut — inloggningen ligger kvar
               {sessionLagring === "app" ? " i telefonens egen lagring" : " i den här webbläsaren"}.
+              {/* Säger vilken app som körs. Utan raden går det inte att
+                  skilja en app som saknar Google-stödet från ett fel i
+                  själva inloggningen — båda ser likadana ut utifrån. */}
+              {iNativApp && !googleGarIAppen && (
+                <> Den här versionen av appen saknar stöd för Google-inloggning;
+                installera den senaste appen om du vill använda det.</>
+              )}
             </p>
           </div>
         )}
