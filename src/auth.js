@@ -31,9 +31,17 @@ export const hasAuth = Boolean(url && key);
 
    Bara i appen. På webben skulle ett byte av lagring logga ut alla
    som redan är inloggade, eftersom nycklarna heter något annat. */
+/* isPluginAvailable, inte bara isNativePlatform. Webbkoden hämtas från
+   sajten medan den nativa delen sitter i den installerade appen, så en
+   äldre app kan mycket väl köra den här raden utan att ha modulen. Då
+   kastar Capacitor "not implemented on android" och appen blir vit.
+   Med kontrollen faller den istället tillbaka på localStorage — samma
+   beteende som förut, tills användaren installerat den nya appen. */
 const iApp = (() => {
-  try { return window.Capacitor?.isNativePlatform?.() === true; }
-  catch { return false; }
+  try {
+    const C = window.Capacitor;
+    return C?.isNativePlatform?.() === true && C?.isPluginAvailable?.("Preferences") === true;
+  } catch { return false; }
 })();
 
 /* Läses av Konto-fliken. Att raden syns är också vårt enda kvitto på
