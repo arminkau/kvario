@@ -8,7 +8,7 @@
     "build": "node kontroll.mjs && vite build",
     "preview": "vite preview",
     "kontroll": "node kontroll.mjs",
-    "ikoner": "node verktyg/gor-ikoner.mjs && node verktyg/gor-android-ikoner.mjs",
+    "ikoner": "node verktyg/gor-ikoner.mjs && node verktyg/gor-android-ikoner.mjs && node verktyg/gor-ios-ikon.mjs",
     "app:synka": "npm run build && npx cap sync",
     "app:android": "npm run app:synka && npx cap open android",
     "app:ios": "npm run app:synka && npx cap open ios"

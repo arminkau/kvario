@@ -1,0 +1,78 @@
+# ============================================================
+# Bygger iOS-appen för att kontrollera att projektet håller ihop
+#
+# Den här ger dig INTE en app att installera. Att signera kräver
+# ett certifikat från Apple Developer Program, och utan signering
+# vägrar en iPhone köra bygget. Se README för vägarna dit.
+#
+# Vad den däremot gör: fångar när något i iOS-projektet slutar
+# fungera. Utveckling sker på Windows, där Xcode inte finns, så
+# utan det här skulle ett trasigt iOS-bygge kunna ligga oupptäckt
+# ända tills någon sätter sig vid en Mac.
+# ============================================================
+
+name: Bygg iOS
+
+on:
+  push:
+    branches: [main]
+    # Bara när något som rör iOS ändrats. macOS-minuter kostar tio
+    # gånger så mycket som Linux i GitHubs kvot.
+    paths:
+      - "ios/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - ".github/workflows/ios-bygge.yml"
+  workflow_dispatch:
+
+jobs:
+  bygg:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22          # Capacitors CLI kräver minst 22
+          cache: npm
+
+      - name: Installera beroenden
+        run: npm ci
+
+      - name: Bygg webbdelen
+        run: npm run build
+
+      - name: Synka Capacitor
+        run: npx cap sync ios
+
+      # -project, inte -workspace. Capacitor 8 använder Swift Package
+      # Manager i stället för CocoaPods, så någon .xcworkspace finns
+      # inte — beroendena ligger i CapApp-SPM bredvid projektet.
+      - name: Bygg appen utan signering
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -scheme App \
+            -project App.xcodeproj \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Kontrollera att appikonen duger åt Apple
+        run: |
+          IKON="ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png"
+          # Färgtypen ligger i byte 25 av en PNG. 2 = RGB, 6 = RGBA.
+          # Apple avvisar ikoner som har en alfakanal, så det ska vara 2.
+          TYP=$(xxd -p -s 25 -l 1 "$IKON")
+          if [ "$TYP" != "02" ]; then
+            echo "Appikonen har färgtyp 0x$TYP, väntade 02 (RGB utan alfa)."
+            echo "Kör: node verktyg/gor-ios-ikon.mjs"
+            exit 1
+          fi
+          echo "Appikonen är RGB utan alfakanal."

@@ -66,5 +66,25 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!--
+		Återresan från Google, iOS-motsvarigheten till intent-filtret
+		i AndroidManifest.xml. Utan den här öppnar iOS inte appen när
+		Safari möter se.kvario.app://auth, och inloggningen tar aldrig
+		sig tillbaka.
+
+		Adressen måste också ligga bland tillåtna Redirect URLs i
+		Supabase — samma rad som Android använder, ingen ny behövs.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>se.kvario.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>se.kvario.app</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

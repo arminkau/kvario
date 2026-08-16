@@ -43,17 +43,29 @@ function chunk(typ, data) {
   return Buffer.concat([langd, kropp, crc]);
 }
 
-function skrivPng(bredd, hojd, pixlar) {
+/* utanAlfa skriver RGB i stället för RGBA. Apple avvisar app-ikoner
+   som har en alfakanal, även när varenda pixel är ogenomskinlig — det
+   är kanalens blotta närvaro som fälls. */
+function skrivPng(bredd, hojd, pixlar, utanAlfa = false) {
+  const kanaler = utanAlfa ? 3 : 4;
   const rader = [];
   for (let y = 0; y < hojd; y++) {
     rader.push(Buffer.from([0]));  // filter: none
-    rader.push(Buffer.from(pixlar.subarray(y * bredd * 4, (y + 1) * bredd * 4)));
+    const rad = pixlar.subarray(y * bredd * 4, (y + 1) * bredd * 4);
+    if (!utanAlfa) { rader.push(Buffer.from(rad)); continue; }
+    const utan = Buffer.alloc(bredd * 3);
+    for (let x = 0; x < bredd; x++) {
+      utan[x * 3] = rad[x * 4];
+      utan[x * 3 + 1] = rad[x * 4 + 1];
+      utan[x * 3 + 2] = rad[x * 4 + 2];
+    }
+    rader.push(utan);
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(bredd, 0);
   ihdr.writeUInt32BE(hojd, 4);
-  ihdr[8] = 8;   // bitar per kanal
-  ihdr[9] = 6;   // RGBA
+  ihdr[8] = 8;                      // bitar per kanal
+  ihdr[9] = kanaler === 3 ? 2 : 6;  // 2 = RGB, 6 = RGBA
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", ihdr),
@@ -70,7 +82,7 @@ function skrivPng(bredd, hojd, pixlar) {
    mindre aggressiv. En profilbild beskärs till cirkel, som behåller
    ungefär 70 procent av bredden — då blir maskable-marginalen på
    29 procent alldeles för tilltagen och märket ser borttappat ut. */
-export function ritaIkon(storlek, maskable, egenMarginal = null) {
+export function ritaIkon(storlek, maskable, egenMarginal = null, utanAlfa = false) {
   const px = new Uint8Array(storlek * storlek * 4);
   const satt = (x, y, [r, g, b], a = 255) => {
     const i = (y * storlek + x) * 4;
@@ -120,5 +132,5 @@ export function ritaIkon(storlek, maskable, egenMarginal = null) {
       }
     }
   }
-  return skrivPng(storlek, storlek, px);
+  return skrivPng(storlek, storlek, px, utanAlfa);
 }
