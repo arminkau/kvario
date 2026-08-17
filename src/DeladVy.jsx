@@ -18,7 +18,10 @@ function berakna(state) {
   const invoices = state.invoices || [];
   const costs = state.costs || [];
   const employees = state.employees || [];
-  const personal = personalkostnad(employees);
+  // Samma inkomstår som appen räknar med, annars kan konsulten se
+  // andra siffror än den som delade rapporten.
+  const INKOMSTAR = new Date().getFullYear();
+  const personal = personalkostnad(employees, INKOMSTAR);
   const payroll = personal.lon;
   const momsreg = settings.momsregistrerad !== false;
 
@@ -36,9 +39,7 @@ function berakna(state) {
 
   let tax = null;
   if (form) {
-    // Samma inkomstår som appen räknar med, annars kan konsulten se
-    // andra siffror än den som delade rapporten.
-    tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: new Date().getFullYear() });
+    tax = form.compute({ revenue, costs: costBase, settings, payroll, payrollAvgifter: personal.avgifter, ar: INKOMSTAR });
   }
 
   const d = { revenue, outVat, inVat, vatDue: Math.max(0, outVat - inVat), costBase, tax, momsreg, count: invoices.length, perTyp: {} };

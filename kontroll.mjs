@@ -27,8 +27,18 @@ const FORBJUDNA = [
   "Fritt att ta ut",
 ];
 
-/* Skattesatser får bara stå i tax.js */
-const SATSER = [/0\.2897/, /0\.3142/, /0\.206/, /0\.1021/, /643000/, /83400/, /59200/];
+/* Skattesatser och gränsbelopp får bara stå i tax.js.
+   Listan är handhållen, vilket är dess svaghet: OSS-tröskeln låg
+   hårdkodad i en jämförelse i App.jsx i månader utan att fångas,
+   eftersom 99680 aldrig lagts till här. Lägg till varje nytt tal
+   som styr en beräkning. */
+const SATSER = [
+  /0\.2897/, /0\.3142/, /0\.206/, /0\.1021/, /0\.2081/,
+  /643000/, /83400/, /59200/,
+  /99680/, /99 680/,        // OSS-tröskeln
+  /120000/,                 // omsättningsgränsen för moms
+  /703000/,                 // avtrappning av jobbskatteavdraget
+];
 
 let fel = 0;
 

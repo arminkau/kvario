@@ -33,6 +33,13 @@ function vardag(d) {
 
 const datum = (ar, manad, dag) => vardag(new Date(ar, manad, dag));
 
+/* Dygnets början. Förfallodagarna är midnatt medan "nu" är en
+   tidpunkt, så en rak jämförelse räknar dagens egen frist som
+   passerad redan klockan ett på natten — och appen hoppade då fram
+   ett helt år. Just den dagen är den som betyder något, så allt
+   jämförs mot dygnets början i stället. */
+const dygnetsBorjan = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
 export const MOMSPERIODER = [
   ["helar", "En gång om året", "Omsättning upp till 1 miljon kr"],
   ["kvartal", "Varje kvartal", "Omsättning 1–40 miljoner kr"],
@@ -42,6 +49,7 @@ export const MOMSPERIODER = [
 /* Momsperiodens slut och deklarationsdag för den period som
    ligger närmast i tiden efter "nu". */
 function nastaMomsperiod(nu, period) {
+  const idag = dygnetsBorjan(nu);
   const ar = nu.getFullYear();
   const kandidater = [];
 
@@ -66,7 +74,7 @@ function nastaMomsperiod(nu, period) {
   }
 
   return kandidater
-    .filter((k) => k.forfall > nu)
+    .filter((k) => k.forfall >= idag)
     .sort((a, b) => a.forfall - b.forfall)[0] || null;
 }
 
@@ -79,12 +87,13 @@ export function kommandeDatum({
   euHandel = false,
 } = {}) {
   const lista = [];
+  const idag = dygnetsBorjan(nu);
 
   /* ---- Inkomstdeklaration: 2 maj året efter inkomståret ---- */
   const ar = nu.getFullYear();
   let deklDatum = datum(ar, 4, 2);
   let inkomstar = ar - 1;
-  if (nu > deklDatum) {
+  if (deklDatum < idag) {
     deklDatum = datum(ar + 1, 4, 2);
     inkomstar = ar;
   }
@@ -103,7 +112,7 @@ export function kommandeDatum({
       const dag = euHandel ? 26 : 12;
       let momsDatum = datum(ar, manad, dag);
       let momsAr = ar - 1;
-      if (nu > momsDatum) {
+      if (momsDatum < idag) {
         momsDatum = datum(ar + 1, manad, dag);
         momsAr = ar;
       }
@@ -131,8 +140,10 @@ export function kommandeDatum({
        Krävs bara vid försäljning till företag i EU. Lämnas den
        25:e månaden efter perioden när den skickas via e-tjänst. */
     if (euHandel) {
-      let ps = datum(ar, nu.getMonth() + 1, 25);
-      if (nu > ps) ps = datum(ar, nu.getMonth() + 2, 25);
+      // Den 25:e i månaden efter perioden. Är vi före den 25:e gäller
+      // den här månaden, annars nästa.
+      let ps = datum(ar, nu.getMonth(), 25);
+      if (ps < idag) ps = datum(ar, nu.getMonth() + 1, 25);
       lista.push({
         id: "periodisk",
         rubrik: "Periodisk sammanställning",
@@ -142,7 +153,9 @@ export function kommandeDatum({
     }
   }
 
+  /* Räknat mellan dygn, inte mellan tidpunkter. Annars blir "i dag"
+     till minus noll dagar, och "i morgon" till noll. */
   return lista
-    .map((p) => ({ ...p, dagarKvar: Math.ceil((p.forfall - nu) / 86400000) }))
+    .map((p) => ({ ...p, dagarKvar: Math.round((p.forfall - idag) / 86400000) }))
     .sort((a, b) => a.forfall - b.forfall);
 }

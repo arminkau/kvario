@@ -66,6 +66,25 @@ const AR = {
 
     pensionAndel: 0.35,       // eget pensionssparande, andel av överskott
     pensionTakPbb: 10,
+
+    /* Grundavdragets brytpunkter. Skatteverkets tabell trappar i steg;
+       här interpoleras linjärt mellan punkterna, vilket avviker med
+       några hundralappar. */
+    gaBrytpunkter: [
+      [25100, 25100],         // upp hit är avdraget hela inkomsten
+      [58900, 25100],
+      [161000, 45600],
+      [184900, 45600],
+      [466000, 17400],
+    ],
+    gaGolv: 17400,
+
+    // Jobbskatteavdrag: avtrappning börjar här, 3 % av överskjutande
+    jsaAvtrappning: 703000,
+    jsaAvtrappningSats: 0.03,
+
+    begravningsavgift: 0.28,  // procent, betalas av alla
+    kyrkoavgift: 1.03,        // procent, bara medlemmar
   },
 };
 
@@ -80,8 +99,12 @@ export function varden(ar = SENASTE_AR) {
   return { ...(finns || AR[SENASTE_AR]), ar, saknasAr: finns ? null : ar };
 }
 
-const PBB = AR[SENASTE_AR].pbb;
-const SKIKTGRANS = AR[SENASTE_AR].skiktgrans;
+/* Inga modulkonstanter för satser här. Tidigare låstes pbb och
+   skiktgränsen till senaste året, medan funktionerna nedan tog emot
+   ett årtal de inte använde. Så länge tabellen bara hade ett år gav
+   det rätt svar — men den dag 2027 lades till hade grundavdrag,
+   jobbskatteavdrag och statlig skatt tyst räknat vidare på 2026 års
+   siffror, utan att något sagt ifrån. */
 
 /* ---------- Arbetsgivaravgifter per anställd ----------
    Full avgift är 31,42 %, men flera nedsättningar finns och de
@@ -97,52 +120,59 @@ const SKIKTGRANS = AR[SENASTE_AR].skiktgrans;
    Kontrollera alltid mot Skatteverket. Reglerna ändras ofta och
    villkoren för växa-stöd har fler krav än vad som ryms här. */
 
-export const AGA_FULL = 0.3142;
-const AGA_PENSION = 0.1021;
-const AGA_UNG = 0.2081;
+/* Behålls för gränssnittet, som visar satsen som text. Beräkningarna
+   nedan läser den ur årstabellen i stället. */
+export const AGA_FULL = AR[SENASTE_AR].aga;
 
-export function arbetsgivaravgift({ manadslon, fodelsear, vaxa, ar = 2026 }) {
+export function arbetsgivaravgift({ manadslon, fodelsear, vaxa, ar = SENASTE_AR }) {
+  const v = varden(ar);
+
   // Ogiltig indata ska ge noll, aldrig NaN. Ett NaN här sprider sig
   // genom hela beräkningen och blir svårt att spåra tillbaka hit.
   const lon = Number(manadslon);
   const arslon = Number.isFinite(lon) ? Math.max(0, lon * 12) : 0;
-  if (arslon === 0) return { avgift: 0, sats: AGA_FULL, regel: null, sparat: 0 };
+  if (arslon === 0) return { avgift: 0, sats: v.aga, regel: null, sparat: 0 };
   const manadslonSakrad = arslon / 12;
 
-  const fullAvgift = arslon * AGA_FULL;
+  const fullAvgift = arslon * v.aga;
+
+  /* Samma form på båda nedsättningarna: nedsatt sats upp till ett tak
+     per månad, full avgift på det som ligger över. */
+  const delad = (tak, nedsattSats) => {
+    const nedsattDel = Math.min(manadslonSakrad, tak) * 12;
+    const restDel = Math.max(0, manadslonSakrad - tak) * 12;
+    return nedsattDel * nedsattSats + restDel * v.aga;
+  };
 
   if (vaxa) {
-    // Nedsatt upp till 35 000 kr per månad, full avgift på överskjutande
-    const nedsattDel = Math.min(manadslonSakrad, 35000) * 12;
-    const restDel = Math.max(0, manadslonSakrad - 35000) * 12;
-    const avgift = nedsattDel * AGA_PENSION + restDel * AGA_FULL;
+    const avgift = delad(v.agaVaxaTak, v.agaPension);
     return { avgift, sats: avgift / arslon, regel: "Växa-stöd", sparat: fullAvgift - avgift };
   }
 
   const alder = fodelsear ? ar - fodelsear : null;
   if (alder !== null && alder >= 19 && alder <= 23) {
-    const nedsattDel = Math.min(manadslonSakrad, 25000) * 12;
-    const restDel = Math.max(0, manadslonSakrad - 25000) * 12;
-    const avgift = nedsattDel * AGA_UNG + restDel * AGA_FULL;
+    const avgift = delad(v.agaUngTak, v.agaUng);
     return { avgift, sats: avgift / arslon, regel: "Ungdomsnedsättning", sparat: fullAvgift - avgift };
   }
 
   if (alder !== null && alder >= 67) {
-    const avgift = arslon * AGA_PENSION;
-    return { avgift, sats: AGA_PENSION, regel: "Endast ålderspensionsavgift", sparat: fullAvgift - avgift };
+    const avgift = arslon * v.agaPension;
+    return { avgift, sats: v.agaPension, regel: "Endast ålderspensionsavgift", sparat: fullAvgift - avgift };
   }
 
-  return { avgift: fullAvgift, sats: AGA_FULL, regel: null, sparat: 0 };
+  return { avgift: fullAvgift, sats: v.aga, regel: null, sparat: 0 };
 }
 
-/* Summerar en personallista till lön, avgifter och besparing. */
-export function personalkostnad(employees = []) {
+/* Summerar en personallista till lön, avgifter och besparing.
+   ar skickas vidare: det styr både satserna och åldern, och en
+   anställd byter åldersgrupp mellan två inkomstår. */
+export function personalkostnad(employees = [], ar = SENASTE_AR) {
   let lon = 0, avgifter = 0, sparat = 0;
   const rader = [];
   employees.forEach((e, i) => {
     // Växa-stöd gäller bara de två första anställda
     const vaxa = e.vaxa && employees.filter((x, j) => x.vaxa && j < i).length < 2;
-    const r = arbetsgivaravgift({ manadslon: e.monthly || 0, fodelsear: e.fodelsear, vaxa });
+    const r = arbetsgivaravgift({ manadslon: e.monthly || 0, fodelsear: e.fodelsear, vaxa, ar });
     lon += (e.monthly || 0) * 12;
     avgifter += r.avgift;
     sparat += r.sparat;
@@ -151,18 +181,28 @@ export function personalkostnad(employees = []) {
   return { lon, avgifter, sparat, total: lon + avgifter, rader };
 }
 
-/* Grundavdrag inkomstår 2026. Brytpunkterna är Skatteverkets;
-   däremellan interpoleras linjärt, medan den riktiga tabellen
-   trappar i steg. Avvikelsen är några hundralappar. */
-export function grundavdrag(i) {
+/* Grundavdraget. Brytpunkterna är Skatteverkets och ligger i
+   årstabellen; däremellan interpoleras linjärt, medan den riktiga
+   tabellen trappar i steg. Avvikelsen är några hundralappar. */
+export function grundavdrag(i, ar = SENASTE_AR) {
+  const v = varden(ar);
   i = Math.max(0, i);
-  let g;
-  if (i <= 25100) g = i;
-  else if (i <= 58900) g = 25100;
-  else if (i <= 161000) g = 25100 + ((i - 58900) * (45600 - 25100)) / (161000 - 58900);
-  else if (i <= 184900) g = 45600;
-  else if (i <= 466000) g = 45600 - ((i - 184900) * (45600 - 17400)) / (466000 - 184900);
-  else g = 17400;
+
+  const p = v.gaBrytpunkter;
+  let g = v.gaGolv;
+
+  if (i <= p[0][0]) {
+    g = i;                                   // avdraget är hela inkomsten
+  } else {
+    for (let n = 1; n < p.length; n++) {
+      const [x0, y0] = p[n - 1];
+      const [x1, y1] = p[n];
+      if (i <= x1) {
+        g = x1 === x0 ? y1 : y0 + ((i - x0) * (y1 - y0)) / (x1 - x0);
+        break;
+      }
+    }
+  }
   return Math.ceil(g / 100) * 100;   // Skatteverket avrundar uppåt till hela hundratal
 }
 
@@ -170,35 +210,40 @@ export function grundavdrag(i) {
    och trappas av på höga inkomster. Gäller både lön och aktiv
    näringsverksamhet. Approximation — den exakta formeln har fler
    parametrar som ändras varje år. */
-export function jobbskatteavdrag(arbetsinkomst, ga, skattesats) {
+export function jobbskatteavdrag(arbetsinkomst, ga, skattesats, ar = SENASTE_AR) {
+  const v = varden(ar);
+  const pbb = v.pbb;
   const ai = Math.max(0, arbetsinkomst);
+
   let bas;
-  if (ai <= 0.91 * PBB) bas = ai;
-  else if (ai <= 3.24 * PBB) bas = 0.91 * PBB + 0.3874 * (ai - 0.91 * PBB);
-  else if (ai <= 8.08 * PBB) bas = 1.703 * PBB + 0.1195 * (ai - 3.24 * PBB);
-  else bas = 2.28 * PBB;
+  if (ai <= 0.91 * pbb) bas = ai;
+  else if (ai <= 3.24 * pbb) bas = 0.91 * pbb + 0.3874 * (ai - 0.91 * pbb);
+  else if (ai <= 8.08 * pbb) bas = 1.703 * pbb + 0.1195 * (ai - 3.24 * pbb);
+  else bas = 2.28 * pbb;
 
   let jsa = Math.max(0, bas - ga) * skattesats;
-  const avtrappning = 703000;
-  if (ai > avtrappning) jsa = Math.max(0, jsa - (ai - avtrappning) * 0.03);
+  if (ai > v.jsaAvtrappning) {
+    jsa = Math.max(0, jsa - (ai - v.jsaAvtrappning) * v.jsaAvtrappningSats);
+  }
   return jsa;
 }
 
 /* Skatt på inkomst av tjänst. Används av båda företagsformerna. */
-function tjansteskatt(taxerad, arbetsinkomst, kommunalskatt, avgifter = {}) {
+function tjansteskatt(taxerad, arbetsinkomst, kommunalskatt, avgifter = {}, ar = SENASTE_AR) {
+  const v = varden(ar);
   const rate = kommunalskatt / 100;
-  const ga = grundavdrag(taxerad);
+  const ga = grundavdrag(taxerad, ar);
   const beskattningsbar = Math.max(0, taxerad - ga);
   const kommunal = beskattningsbar * rate;
-  const statlig = Math.max(0, beskattningsbar - SKIKTGRANS) * 0.2;
-  const jsa = jobbskatteavdrag(arbetsinkomst, ga, rate);
+  const statlig = Math.max(0, beskattningsbar - v.skiktgrans) * v.statligSats;
+  const jsa = jobbskatteavdrag(arbetsinkomst, ga, rate, ar);
 
   /* Begravningsavgiften betalas av alla. Kyrkoavgiften bara av
      medlemmar i Svenska kyrkan. Ingen av dem omfattas av
      jobbskatteavdraget. */
-  const begravning = beskattningsbar * ((avgifter.begravning ?? 0.28) / 100);
+  const begravning = beskattningsbar * ((avgifter.begravning ?? v.begravningsavgift) / 100);
   const kyrka = avgifter.kyrkomedlem
-    ? beskattningsbar * ((avgifter.kyrkoavgift ?? 1.03) / 100)
+    ? beskattningsbar * ((avgifter.kyrkoavgift ?? v.kyrkoavgift) / 100)
     : 0;
 
   return {
@@ -328,8 +373,8 @@ const ENSKILD = {
     // Företagets inkomst läggs ovanpå eventuell annan tjänsteinkomst.
     // Skatten som hör till företaget är skillnaden mellan att ha det
     // och att inte ha det — alltså den marginella effekten.
-    const utan = tjansteskatt(annan, annan, settings.kommunalskatt, settings);
-    const med = tjansteskatt(annan + naringsinkomst, annan + naringsinkomst, settings.kommunalskatt, settings);
+    const utan = tjansteskatt(annan, annan, settings.kommunalskatt, settings, v.ar);
+    const med = tjansteskatt(annan + naringsinkomst, annan + naringsinkomst, settings.kommunalskatt, settings, v.ar);
     const t = { ...med, skatt: Math.max(0, med.skatt - utan.skatt) };
 
     /* Restposten: vad som blir över av näringsdelen, plus den

@@ -12,7 +12,7 @@ import Admin from "./Admin.jsx";
 import { TESTKONTON, ADMIN_TESTDATA } from "./testdata";
 import { VILLKOR, VILLKOR_VERSION } from "./villkor";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
-import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER, SENASTE_AR } from "./tax";
+import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER, SENASTE_AR, varden } from "./tax";
 import { Marginalkurvan } from "./Charts.jsx";
 import { kommandeDatum } from "./skattedatum";
 import DeladVy from "./DeladVy.jsx";
@@ -44,6 +44,11 @@ const PLANS = {
    Alla anrop till compute() och marginalskatt() ska få detta värde,
    annars kan två siffror bredvid varandra bygga på olika års regler. */
 const INKOMSTAR = new Date().getFullYear();
+
+/* Hämtas ur årstabellen i stället för att skrivas ut här. Tröskeln
+   låg tidigare som ett rått tal i en jämförelse längre ned, och
+   ändras den i tax.js följer texten och gränsen nu med av sig själv. */
+const OSS_TROSKEL = varden(INKOMSTAR).ossTroskel;
 
 const FLIKAR = [
   ["oversikt", "Översikt"],
@@ -196,7 +201,7 @@ export default function KvarioApp() {
 
   const { countryCode, invoices, costs, paidOnly, hourlyRate, plan, setAside } = state;
   const employees = state.employees || [];
-  const personal = useMemo(() => personalkostnad(employees), [employees]);
+  const personal = useMemo(() => personalkostnad(employees, INKOMSTAR), [employees]);
   const payroll = personal.lon;
   const country = COUNTRIES[countryCode];
   const form = country.forms ? country.forms[state.form] || country.forms.enskild : null;
@@ -1654,8 +1659,8 @@ export default function KvarioApp() {
               Var kunden finns avgör om moms ska tas ut och vad som ska rapporteras. Säljer du till
               företag i EU gäller omvänd betalningsskyldighet — ingen moms på fakturan, men kundens
               VAT-nummer krävs och försäljningen ska med i periodisk sammanställning. Säljer du
-              digitala tjänster till privatpersoner i EU gäller svensk moms upp till 99 680 kr per
-              år, och därefter kundens lands momssats via One Stop Shop.
+              digitala tjänster till privatpersoner i EU gäller svensk moms upp till {kr(OSS_TROSKEL)} kr
+              per år, och därefter kundens lands momssats via One Stop Shop.
             </InfoBox>
 
             {Object.entries(d.perTyp).filter(([k]) => k !== "se").map(([k, v]) => {
@@ -1689,9 +1694,9 @@ export default function KvarioApp() {
               <div className="alert">
                 <span className="bang">!</span>
                 <p>
-                  {d.perTyp.eub2c > 99680
-                    ? <><strong>Du har passerat tröskeln för OSS.</strong> Din försäljning till privatpersoner i EU är {kr(d.perTyp.eub2c)} kr, över gränsen på 99 680 kr. Du ska ta ut kundens lands momssats och redovisa via One Stop Shop hos Skatteverket.</>
-                    : <><strong>Svensk moms gäller än så länge.</strong> Din försäljning till privatpersoner i EU är {kr(d.perTyp.eub2c)} kr av tröskeln 99 680 kr. Passerar du den ska kundens lands momssats användas i stället.</>}
+                  {d.perTyp.eub2c > OSS_TROSKEL
+                    ? <><strong>Du har passerat tröskeln för OSS.</strong> Din försäljning till privatpersoner i EU är {kr(d.perTyp.eub2c)} kr, över gränsen på {kr(OSS_TROSKEL)} kr. Du ska ta ut kundens lands momssats och redovisa via One Stop Shop hos Skatteverket.</>
+                    : <><strong>Svensk moms gäller än så länge.</strong> Din försäljning till privatpersoner i EU är {kr(d.perTyp.eub2c)} kr av tröskeln {kr(OSS_TROSKEL)} kr. Passerar du den ska kundens lands momssats användas i stället.</>}
                 </p>
               </div>
             )}
