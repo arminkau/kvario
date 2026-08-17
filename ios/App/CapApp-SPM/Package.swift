@@ -12,11 +12,11 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.0"),
-        // Snedstrecken åt rätt håll med flit. "npx cap sync ios" körd på
-        // Windows skriver dem omvända, och Swift Package Manager på en
-        // Mac hittar då ingenting. Byggservern synkar om filen själv, så
-        // felet syns inte där — bara för den som öppnar projektet i
-        // Xcode utan att synka först.
+        // Snedstrecken åt rätt håll med flit. "npx cap sync" körd på
+        // Windows skriver dem omvända varje gång, och Swift Package
+        // Manager på en Mac hittar då ingenting. Byggservern synkar om
+        // filen själv, så felet syns inte där — bara för den som
+        // öppnar projektet i Xcode utan att synka först.
         .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
         .package(name: "CapacitorBrowser", path: "../../../node_modules/@capacitor/browser"),
         .package(name: "CapacitorPreferences", path: "../../../node_modules/@capacitor/preferences")

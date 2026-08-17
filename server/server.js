@@ -16,12 +16,32 @@
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
-import { skickaOrderbekraftelse } from "./epost.js";
+import { skickaOrderbekraftelse, provaSmtp } from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db } from "./db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const app = express();
-app.use(cors({ origin: process.env.APP_URL || "http://localhost:5173" }));
+/* Både med och utan www. Den som skriver www.kvario.se i webbläsaren
+   ska inte mötas av ett tyst CORS-fel vid första betalningen. */
+const tillatnaUrsprung = [
+  process.env.APP_URL || "http://localhost:5173",
+  ...(process.env.APP_URL?.startsWith("https://") && !process.env.APP_URL.includes("www.")
+    ? [process.env.APP_URL.replace("https://", "https://www.")]
+    : []),
+];
+app.use(cors({ origin: tillatnaUrsprung }));
+
+/* Säger om servern når Strato, utan att skicka något. Ett felstavat
+   lösenord syns då direkt i stället för vid första betalningen — där
+   det bara hade blivit en rad i loggen som ingen läser. */
+app.get("/halsa", async (_req, res) => {
+  const smtp = await provaSmtp();
+  res.json({
+    appUrl: process.env.APP_URL || null,
+    stripe: Boolean(process.env.STRIPE_SECRET_KEY),
+    smtp,
+  });
+});
 
 /* Kundens Stripe-id och plan läses från subscriptions, inte från
    minnet i processen. En in-memory Map nollställs vid varje omstart

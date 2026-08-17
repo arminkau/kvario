@@ -5,9 +5,9 @@
    Aldrig från frontend — en bekräftelse får bara gå ut när
    pengarna faktiskt kommit fram.
 
-   Kräver ett e-postkonto hos en leverantör. Resend har en gratis
-   nivå som räcker långt: sätt RESEND_API_KEY och verifiera din
-   domän, annars hamnar breven i skräpposten.
+   Skickas över SMTP från kvario.se hos Strato. Avsändaradressen
+   måste vara samma konto som autentiseringen sker med — Strato
+   avvisar brev där from pekar någon annanstans.
 
    TVÅ SAKER SOM MÅSTE VARA RÄTT:
 
@@ -22,7 +22,9 @@
       använt tjänsten.
    ============================================================ */
 
-const AVSANDARE = process.env.EPOST_AVSANDARE || "Kvario <no-reply@dindoman.se>";
+import nodemailer from "nodemailer";
+
+const AVSANDARE = process.env.EPOST_AVSANDARE || "Kvario <info@kvario.se>";
 
 export const SALJARE = {
   namn: process.env.FORETAG_NAMN || "[Ditt företagsnamn]",
@@ -154,30 +156,79 @@ ${SALJARE.namn}, org.nr ${SALJARE.orgnr}
 ${SALJARE.epost}`;
 }
 
-/* Skickar brevet. Byt leverantör här om du väljer en annan —
-   resten av koden behöver inte ändras. */
+/* ---------- SMTP ----------
+   Anslutningen görs en gång och återanvänds. Nodemailer håller en
+   pool, vilket spelar roll här: webhooken kan få flera betalningar
+   tätt inpå varandra, och Strato stryper den som öppnar en ny
+   session per brev.
+
+   Port 465 är implicit TLS och är det som rekommenderas. 587 med
+   STARTTLS fungerar också — sätt SMTP_PORT så väljs rätt läge av
+   sig självt. */
+let transport = null;
+
+function hamtaTransport() {
+  if (transport) return transport;
+
+  const varden = process.env.SMTP_VARD;
+  const anvandare = process.env.SMTP_ANVANDARE;
+  const losenord = process.env.SMTP_LOSENORD;
+  if (!varden || !anvandare || !losenord) return null;
+
+  const port = Number(process.env.SMTP_PORT || 465);
+  transport = nodemailer.createTransport({
+    host: varden,
+    port,
+    secure: port === 465,   // 465 = TLS direkt, 587 = STARTTLS
+    auth: { user: anvandare, pass: losenord },
+    pool: true,
+    maxConnections: 2,
+    // Ett brev som hänger får inte hålla webhooken öppen; Stripe
+    // gör om anropet om vi svarar för sent.
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+  });
+  return transport;
+}
+
+/* Skickar brevet. Ett misslyckat utskick får aldrig fälla anropet
+   som kallade hit — betalningen är redan genomförd, och en order
+   utan bekräftelse är långt bättre än en order som rullas tillbaka
+   för att mejlservern hade en dålig dag. */
 export async function skickaOrderbekraftelse(data) {
-  const nyckel = process.env.RESEND_API_KEY;
-  if (!nyckel) {
-    console.warn("RESEND_API_KEY saknas — ingen orderbekräftelse skickad till", data.epost);
-    return { skickad: false };
+  const t = hamtaTransport();
+  if (!t) {
+    console.warn("SMTP är inte konfigurerat — ingen orderbekräftelse skickad till", data.epost);
+    return { skickad: false, orsak: "okonfigurerad" };
   }
 
-  const svar = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${nyckel}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+  try {
+    await t.sendMail({
       from: AVSANDARE,
       to: data.epost,
+      replyTo: SALJARE.epost,
       subject: `Orderbekräftelse ${data.ordernummer} — Kvario Pro`,
       html: orderbekraftelseHtml(data),
       text: orderbekraftelseText(data),
-    }),
-  });
-
-  if (!svar.ok) {
-    console.error("Kunde inte skicka orderbekräftelse:", await svar.text());
-    return { skickad: false };
+    });
+    return { skickad: true };
+  } catch (e) {
+    console.error("Kunde inte skicka orderbekräftelse:", e?.message || e);
+    return { skickad: false, orsak: e?.message || "okänt fel" };
   }
-  return { skickad: true };
+}
+
+/* Provar anslutningen utan att skicka något. Anropas av /halsa på
+   servern, så att ett felstavat lösenord upptäcks direkt i stället
+   för vid första betalningen. */
+export async function provaSmtp() {
+  const t = hamtaTransport();
+  if (!t) return { ok: false, orsak: "SMTP-variablerna är inte satta" };
+  try {
+    await t.verify();
+    return { ok: true, avsandare: AVSANDARE };
+  } catch (e) {
+    return { ok: false, orsak: e?.message || "okänt fel" };
+  }
 }

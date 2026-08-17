@@ -91,39 +91,63 @@ till e-postinloggningen, aldrig som ersättning. Se kommentaren i `src/auth.js`.
 Skickas från webhooken på `invoice.paid` — aldrig från frontend, eftersom
 bekräftelsen bara får gå ut när pengarna faktiskt kommit fram.
 
-1. Skapa konto hos Resend, verifiera din domän
-2. Sätt `RESEND_API_KEY` och `EPOST_AVSANDARE` på servern
-3. Fyll i `FORETAG_NAMN`, `FORETAG_ORGNR`, `FORETAG_ADRESS`, `FORETAG_EPOST`,
-   `FORETAG_MOMSNR` — de måste stå på bekräftelsen
+Går över SMTP hos Strato, från `info@kvario.se`.
 
-Utan verifierad domän hamnar breven i skräpposten.
+Sätt på servern:
+
+    SMTP_VARD       smtp.strato.com
+    SMTP_PORT       465
+    SMTP_ANVANDARE  info@kvario.se
+    SMTP_LOSENORD   (lösenordet till brevlådan)
+    EPOST_AVSANDARE Kvario <info@kvario.se>
+
+Plus `FORETAG_NAMN`, `FORETAG_ORGNR`, `FORETAG_ADRESS`, `FORETAG_EPOST` och
+`FORETAG_MOMSNR` — de måste stå på bekräftelsen enligt bokföringslagen.
+
+Avsändaradressen måste vara samma konto som autentiseringen sker med. Strato
+avvisar brev där `from` pekar någon annanstans.
+
+Kontrollera med `GET /halsa` på servern. Den provar anslutningen utan att
+skicka något, så ett felstavat lösenord syns direkt i stället för vid första
+betalningen.
 
 ### Leveransbarhet — tre DNS-poster
 
-Utan dessa hamnar orderbekräftelserna i skräpposten. Alla tre sätts hos din
-DNS-leverantör, samma ställe som domänen pekar mot Vercel.
+Utan dessa hamnar orderbekräftelserna i skräpposten. Alla tre sätts hos Strato,
+under domänens DNS-inställningar.
 
-**SPF** — talar om vilka servrar som får skicka som din domän.
-Resend ger dig exakt värde vid domänverifieringen. Har du redan en SPF-post
-ska du lägga till i den, inte skapa en till — två SPF-poster gör att båda
-underkänns.
+**SPF** — talar om vilka servrar som får skicka som din domän. För Strato:
 
-**DKIM** — signerar breven kryptografiskt. Resend genererar nyckeln och ger
-dig en CNAME att lägga in. Detta är den viktigaste posten.
+    Namn:  @  (eller tomt)
+    Typ:   TXT
+    Värde: v=spf1 include:spf.strato.com ~all
+
+Har du redan en SPF-post ska du lägga till i den, inte skapa en till — två
+SPF-poster gör att båda underkänns.
+
+**DKIM** — signerar breven kryptografiskt. Strato slår på det under
+E-post → Inställningar för domänen; posterna läggs in åt dig. Detta är den
+viktigaste posten.
 
 **DMARC** — säger vad mottagaren ska göra med brev som inte klarar SPF eller
 DKIM. Börja mjukt:
 
     Namn:  _dmarc
     Typ:   TXT
-    Värde: v=DMARC1; p=none; rua=mailto:din@epost.se
+    Värde: v=DMARC1; p=none; rua=mailto:info@kvario.se
 
 Kör med `p=none` några veckor, läs rapporterna, skärp sedan till
 `p=quarantine`. Att börja med `p=reject` innan allt fungerar gör att dina egna
 brev försvinner.
 
-**Skicka från en underdomän**, exempelvis `no-reply@post.dindoman.se`. Går
-något fel med rykte för utskicken påverkas inte din vanliga e-post.
+### När domänen pekas om till Vercel
+
+Behåll MX-posterna hos Strato. Byter du namnservrar till Vercel i stället för
+att lägga in A- och CNAME-poster hos Strato följer inte MX-posterna med, och
+då slutar `info@kvario.se` ta emot post — utan att något säger ifrån.
+
+Lägg alltså in Vercels poster hos Strato, och rör inte raderna som börjar med
+MX.
 
 Testa på mail-tester.com innan lansering — den ger poäng och pekar ut vad som
 saknas.

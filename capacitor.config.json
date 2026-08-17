@@ -3,7 +3,7 @@
   "appName": "Kvario",
   "webDir": "dist",
   "server": {
-    "url": "https://kvario.vercel.app",
+    "url": "https://kvario.se",
     "cleartext": false
   },
   "android": {
