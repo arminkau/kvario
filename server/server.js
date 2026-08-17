@@ -315,6 +315,42 @@ app.post("/portal", express.json(), async (req, res) => {
    utvecklare, men bygg riktig inloggning innan någon annan
    ska kunna göra återbetalningar. */
 
+/* ---------- Provbrev ----------
+   Skickar orderbekräftelsen med påhittade uppgifter till en adress du
+   anger. Utan den går e-posten bara att prova genom att faktiskt köpa
+   något — och då upptäcks ett fel först när en riktig kund väntar på
+   sitt kvitto.
+
+   Bakom adminspärren med flit: annars hade vem som helst kunnat
+   skicka brev i ditt namn från din server. */
+app.post("/admin/provbrev", express.json(), async (req, res) => {
+  if (!(await kravAdmin(req, res))) return;
+
+  const till = req.body?.epost;
+  if (!till || !/^\S+@\S+\.\S+$/.test(till)) {
+    return res.status(400).json({ error: "Ange en giltig e-postadress" });
+  }
+
+  const nu = new Date();
+  const om = new Date(nu);
+  om.setMonth(om.getMonth() + 1);
+
+  const r = await skickaOrderbekraftelse({
+    ordernummer: "K-PROV-0000",
+    epost: till,
+    namn: "Provbrev",
+    belopp: 9900,
+    interval: "month",
+    betaldatum: nu,
+    periodSlut: om,
+    angerrattSamtycke: true,
+    fakturaUrl: null,
+  });
+
+  if (!r.skickad) return res.status(502).json({ error: r.orsak || "Kunde inte skicka" });
+  res.json({ skickad: true, till });
+});
+
 app.post("/admin/aterbetala", express.json(), async (req, res) => {
   if (!(await kravAdmin(req, res))) return;
 
