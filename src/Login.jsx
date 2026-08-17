@@ -87,6 +87,19 @@ export default function Login({ onBack, onTestkonto }) {
             Vi skickade en bekräftelselänk till <b>{email}</b>. Klicka på den för
             att aktivera kontot, sedan kan du logga in med lösenordet du valde.
           </p>
+          {/* Registrerar man en adress som redan har ett konto skickas
+              inget nytt mejl — och vi får aldrig veta om det, eftersom
+              Supabase med flit svarar likadant oavsett. Skulle den
+              säga ifrån kunde vem som helst kartlägga vilka adresser
+              som är kunder.
+
+              Utan den här raden slutar det i en återvändsgränd: man
+              väntar på ett brev som aldrig kommer. */}
+          <p className="obLead" style={{ marginTop: -6 }}>
+            Kommer inget brev inom några minuter kan adressen redan ha ett konto.
+            Gå tillbaka och välj <b>Glömt lösenordet</b> i stället — det fungerar
+            även för konton som aldrig hunnit bekräftas.
+          </p>
           <button className="linkbtn" onClick={() => { setUppSkickad(false); setLage("in"); }}>
             Tillbaka till inloggning
           </button>
