@@ -528,6 +528,10 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
   .switch{transform:scale(1.15);transform-origin:left center}
   .linkbtn{padding:8px 0;display:inline-block}
   .flik{padding:11px 15px}
+  /* Segmentknapparna var 30 px höga, alltså under måtten ovan. De
+     bär valen som ändrar hela beräkningen — avgiftsläge och
+     momsperiod — och är de sista man vill träffa fel på. */
+  .sb{min-height:38px}
 }
 
 @media (max-width:560px){

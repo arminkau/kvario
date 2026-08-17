@@ -628,9 +628,24 @@ export default function KvarioApp() {
   const total = d.revenue + d.vatDue;
   const segments = [
     ...(d.momsreg
-      ? [{ key: "vat", label: country.vatName, amount: d.vatDue, color: "var(--band-1)", note: STAPEL.momsNot }]
+      /* Noten säger ut minus in när det skiljer. Utan den går raderna
+         inte att summera till slutsiffran: rubriken räknar allt du
+         fakturerat inklusive moms, medan den här raden bara tar
+         nettot — mellanskillnaden är momsen du får tillbaka på
+         inköpen, och den syns annars ingenstans. */
+      ? [{
+          key: "vat", label: country.vatName, amount: d.vatDue, color: "var(--band-1)",
+          note: d.inVat > 0
+            ? `${STAPEL.momsNot} · ${kr(d.outVat)} ut minus ${kr(d.inVat)} tillbaka på inköp`
+            : STAPEL.momsNot,
+        }]
       : []),
-    { key: "costs", label: STAPEL.egnaKostnader, amount: d.costBase, color: "var(--band-2)", note: STAPEL.kostnadNot },
+    {
+      key: "costs", label: STAPEL.egnaKostnader, amount: d.costBase, color: "var(--band-2)",
+      note: d.momsreg && d.inVat > 0
+        ? `${STAPEL.kostnadNot} · exklusive moms, den ligger i raden ovan`
+        : STAPEL.kostnadNot,
+    },
     ...(d.tax ? d.tax.lines.map((l, i) => ({ ...l, color: i === 0 ? "var(--band-3)" : "var(--band-4)" })) : []),
   ];
   const shown = segments.reduce((s, x) => s + x.amount, 0);
