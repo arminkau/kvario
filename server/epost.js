@@ -15,6 +15,7 @@
    ============================================================ */
 
 import nodemailer from "nodemailer";
+import { promises as dns } from "node:dns";
 import * as BREV from "./brev.js";
 import { SALJARE } from "./brevmall.js";
 
@@ -29,32 +30,43 @@ const AVSANDARE = process.env.EPOST_AVSANDARE || "Kvario <info@kvario.se>";
    Port 465 är implicit TLS och är det som rekommenderas. 587 med
    STARTTLS fungerar också — sätt SMTP_PORT så väljs rätt läge av
    sig självt. */
-let transport = null;
+let transportLofte = null;
 
-function hamtaTransport() {
-  if (transport) return transport;
+/* Slår upp IPv4-adressen själv och skickar den vidare som host.
 
-  const varden = process.env.SMTP_VARD;
-  const anvandare = process.env.SMTP_ANVANDARE;
-  const losenord = process.env.SMTP_LOSENORD;
-  if (!varden || !anvandare || !losenord) return null;
+   Anledningen är att nodemailer gör sitt eget uppslag, hämtar både A-
+   och AAAA-poster och sedan väljer en av dem SLUMPMÄSSIGT:
 
+       addresses[Math.floor(Math.random() * addresses.length)]
+
+   Strato har båda. Railways containrar har ett IPv6-gränssnitt men
+   ingen väg ut, så varannan anslutning dog med ENETUNREACH mot en
+   2a01:238-adress. Ett fel som ser ut som ett tappat lösenord, och
+   som dessutom försvann om man provade igen — det värsta slaget.
+
+   family-flaggan hjälper inte: den styr namnuppslag, och vid det
+   laget har nodemailer redan ersatt namnet med en färdig adress.
+   Ger man i stället en IP direkt hoppar den över uppslaget helt.
+   servername måste då sättas, annars kontrolleras certifikatet mot
+   IP-adressen i stället för mot värdnamnet. */
+async function skapaTransport(varden, anvandare, losenord) {
   const port = Number(process.env.SMTP_PORT || 465);
-  transport = nodemailer.createTransport({
-    host: varden,
+
+  let host = varden;
+  let servername;
+  try {
+    const [ipv4] = await dns.resolve4(varden);
+    if (ipv4) { host = ipv4; servername = varden; }
+  } catch {
+    // Går uppslaget inte alls, låt nodemailer försöka med namnet.
+  }
+
+  return nodemailer.createTransport({
+    host,
+    servername,
     port,
     secure: port === 465,   // 465 = TLS direkt, 587 = STARTTLS
     auth: { user: anvandare, pass: losenord },
-
-    /* Tvinga IPv4. Strato svarar med både A och AAAA, och Node väljer
-       IPv6 först. Railways containrar har ingen väg ut över IPv6, så
-       anslutningen dog med ENETUNREACH mot en 2a01:238-adress — ett
-       fel som ser ut som ett tappat lösenord men inte är det.
-
-       Går det att sätta en miljövariabel om någon kör där IPv6 finns
-       och föredras. */
-    family: Number(process.env.SMTP_IP_VERSION || 4),
-
     pool: true,
     maxConnections: 2,
     // Ett brev som hänger får inte hålla webhooken öppen; Stripe
@@ -63,12 +75,28 @@ function hamtaTransport() {
     greetingTimeout: 10000,
     socketTimeout: 20000,
   });
-  return transport;
+}
+
+async function hamtaTransport() {
+  const varden = process.env.SMTP_VARD;
+  const anvandare = process.env.SMTP_ANVANDARE;
+  const losenord = process.env.SMTP_LOSENORD;
+  if (!varden || !anvandare || !losenord) return null;
+
+  if (!transportLofte) {
+    transportLofte = skapaTransport(varden, anvandare, losenord).catch((e) => {
+      // Ett misslyckat försök får inte cachas som ett trasigt löfte
+      // för resten av processens liv.
+      transportLofte = null;
+      throw e;
+    });
+  }
+  return transportLofte;
 }
 
 /* Skickar ett färdigt brev. Returnerar alltid, kastar aldrig. */
 async function skicka(till, { amne, html, text }) {
-  const t = hamtaTransport();
+  const t = await hamtaTransport();
   if (!t) {
     console.warn("SMTP är inte konfigurerat — inget brev skickat till", till);
     return { skickad: false, orsak: "okonfigurerad" };
@@ -114,11 +142,13 @@ export const skickaAterbetalning = (epost, data) =>
    servern, så att ett felstavat lösenord upptäcks direkt i stället
    för vid första betalningen. */
 export async function provaSmtp() {
-  const t = hamtaTransport();
-  if (!t) return { ok: false, orsak: "SMTP-variablerna är inte satta" };
   try {
+    const t = await hamtaTransport();
+    if (!t) return { ok: false, orsak: "SMTP-variablerna är inte satta" };
     await t.verify();
-    return { ok: true, avsandare: AVSANDARE };
+    // Visar vilken adress som faktiskt används, så att nästa
+    // nätverksfel går att läsa utan att gissa.
+    return { ok: true, avsandare: AVSANDARE, varden: t.options.host, servername: t.options.servername || null };
   } catch (e) {
     return { ok: false, orsak: e?.message || "okänt fel" };
   }
