@@ -142,15 +142,26 @@ export const skickaAterbetalning = (epost, data) =>
    servern, så att ett felstavat lösenord upptäcks direkt i stället
    för vid första betalningen. */
 export async function provaSmtp() {
+  /* Inställningarna redovisas oavsett utfall. Utan det går det inte
+     att skilja "koden är inte utrullad än" från "det är verkligen
+     nätverket" — och de två felen ser likadana ut utifrån.
+     kod-fältet bumpas när något här ändras, så det syns direkt
+     vilken version som svarar. */
+  const bas = {
+    kod: 3,
+    varden: process.env.SMTP_VARD || null,
+    port: Number(process.env.SMTP_PORT || 465),
+    anvandare: process.env.SMTP_ANVANDARE || null,
+    losenordSatt: Boolean(process.env.SMTP_LOSENORD),
+  };
+
   try {
     const t = await hamtaTransport();
-    if (!t) return { ok: false, orsak: "SMTP-variablerna är inte satta" };
+    if (!t) return { ...bas, ok: false, orsak: "SMTP-variablerna är inte satta" };
     await t.verify();
-    // Visar vilken adress som faktiskt används, så att nästa
-    // nätverksfel går att läsa utan att gissa.
-    return { ok: true, avsandare: AVSANDARE, varden: t.options.host, servername: t.options.servername || null };
+    return { ...bas, ok: true, avsandare: AVSANDARE, ansluterTill: t.options.host };
   } catch (e) {
-    return { ok: false, orsak: e?.message || "okänt fel" };
+    return { ...bas, ok: false, orsak: e?.message || "okänt fel" };
   }
 }
 
