@@ -10,14 +10,42 @@
    det som faktiskt betyder något.
    ============================================================ */
 
-import { brev, textbrev, rader, ruta, knapp, fly, kr, datum, APP_URL, SALJARE } from "./brevmall.js";
+import { brev, textbrev, rader, ruta, knapp, fly, kr, datum, APP_URL, SALJARE, ARMOMSREGISTRERAD } from "./brevmall.js";
 
 /* Momsen räknas baklänges ur bruttobeloppet, eftersom priset anges
-   inklusive moms mot konsument. */
+   inklusive moms mot konsument.
+
+   Är säljaren inte momsregistrerad finns ingen moms att räkna på.
+   Att ändå visa "varav moms 25 %" vore att påstå att moms tagits ut,
+   vilket är fel uppgift till både kunden och bokföringen — och något
+   man inte får göra utan registrering. */
 function momsdelar(bruttoOre, sats = 0.25) {
+  if (!ARMOMSREGISTRERAD) return { netto: bruttoOre, moms: 0, brutto: bruttoOre, sats: 0 };
   const netto = Math.round(bruttoOre / (1 + sats));
   return { netto, moms: bruttoOre - netto, brutto: bruttoOre, sats };
 }
+
+/* Raderna som specificerar beloppet. Utan momsregistrering blir det
+   en enda rad, plus upplysningen om varför momsen saknas — den är
+   det första en bokföringskunnig kund letar efter. */
+function beloppsrader(m, forsta) {
+  if (!ARMOMSREGISTRERAD) {
+    return rader([
+      [forsta, `${kr(m.brutto)} kr`],
+      ["Totalt betalt", `${kr(m.brutto)} kr`, true],
+    ]);
+  }
+  return rader([
+    [forsta, `${kr(m.brutto)} kr`],
+    ["Varav netto", `${kr(m.netto)} kr`],
+    [`Varav moms ${Math.round(m.sats * 100)} %`, `${kr(m.moms)} kr`],
+    ["Totalt betalt", `${kr(m.brutto)} kr`, true],
+  ]);
+}
+
+const MOMSFRI_TEXT =
+  "Ingen moms är debiterad. Säljaren omfattas av undantaget för " +
+  "omsättning under 120 000 kr per år och är därför inte momsregistrerad.";
 
 /* ---------- 1. Nytt konto ---------- */
 export function valkommen({ epost, provDagar = 14 }) {
@@ -140,12 +168,9 @@ export function orderbekraftelse({
 
         <div style="height:26px"></div>
         <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8698A1;font-weight:600;margin-bottom:10px">Sammanfattning</div>
-        ${rader([
-          [`${plan} · period ${period}, förnyas ${datum(periodSlut)}`, `${kr(m.brutto)} kr`],
-          ["Varav netto", `${kr(m.netto)} kr`],
-          [`Varav moms ${Math.round(m.sats * 100)} %`, `${kr(m.moms)} kr`],
-          ["Totalt betalt", `${kr(m.brutto)} kr`, true],
-        ])}
+        ${beloppsrader(m, `${plan} · period ${period}, förnyas ${datum(periodSlut)}`)}
+        ${ARMOMSREGISTRERAD ? "" : `
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.6;color:#8698A1">${MOMSFRI_TEXT}</p>`}
 
         ${fakturaUrl ? `<div style="height:22px"></div>${knapp("Ladda ner kvitto som PDF", fakturaUrl)}` : ""}
 
@@ -162,9 +187,10 @@ export function orderbekraftelse({
         `Betaldatum: ${datum(betaldatum)}`,
         "",
         plan,
-        `Netto: ${kr(m.netto)} kr`,
-        `Moms ${Math.round(m.sats * 100)} %: ${kr(m.moms)} kr`,
+        ARMOMSREGISTRERAD ? `Netto: ${kr(m.netto)} kr` : null,
+        ARMOMSREGISTRERAD ? `Moms ${Math.round(m.sats * 100)} %: ${kr(m.moms)} kr` : null,
         `Totalt betalt: ${kr(m.brutto)} kr`,
+        ARMOMSREGISTRERAD ? null : MOMSFRI_TEXT,
         "",
         `Förnyas ${datum(periodSlut)}. Kan sägas upp när som helst.`,
       ].filter(Boolean),
@@ -258,10 +284,14 @@ export function aterbetalning({ ordernummer, belopp, helt }) {
       kropp: `
         ${rader([
           ["Ordernummer", `<span style="font-family:monospace">${fly(ordernummer)}</span>`],
-          ["Återbetalt netto", `${kr(m.netto)} kr`],
-          [`Varav moms ${Math.round(m.sats * 100)} %`, `${kr(m.moms)} kr`],
+          ...(ARMOMSREGISTRERAD ? [
+            ["Återbetalt netto", `${kr(m.netto)} kr`],
+            [`Varav moms ${Math.round(m.sats * 100)} %`, `${kr(m.moms)} kr`],
+          ] : []),
           ["Totalt återbetalt", `${kr(belopp)} kr`, true],
         ])}
+        ${ARMOMSREGISTRERAD ? "" : `
+          <p style="margin:12px 0 0;font-size:11.5px;line-height:1.6;color:#8698A1">${MOMSFRI_TEXT}</p>`}
         <div style="height:24px"></div>
         <p style="margin:0;font-size:12.5px;line-height:1.65;color:#4A5D68">
           ${helt
@@ -275,10 +305,10 @@ export function aterbetalning({ ordernummer, belopp, helt }) {
       stycken: [
         `Ordernummer: ${ordernummer}`,
         `Totalt återbetalt: ${kr(belopp)} kr`,
-        `Varav moms ${Math.round(m.sats * 100)} %: ${kr(m.moms)} kr`,
+        ARMOMSREGISTRERAD ? `Varav moms ${Math.round(m.sats * 100)} %: ${kr(m.moms)} kr` : MOMSFRI_TEXT,
         "",
         "Pengarna är tillbaka på kortet inom tre till fem bankdagar.",
-      ],
+      ].filter(Boolean),
       fot: "Spara det här brevet som underlag för din bokföring.",
     }),
   };

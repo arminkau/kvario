@@ -23,13 +23,26 @@ const F = {
   varning: "#9A4A25",
 };
 
+/* Momsnumret avgör om säljaren är momsregistrerad. Är det tomt tas
+   ingen moms ut, och då får kvittot varken specificera moms eller
+   ange ett momsnummer — att visa moms man inte har rätt att ta ut är
+   fel uppgift till både kunden och bokföringen.
+
+   Organisationsnumret är frivilligt av ett skäl som gäller just
+   enskild firma: där ÄR organisationsnumret personnumret. På ett
+   kvitto för nittionio kronor, långt under gränsen för förenklad
+   faktura, finns ingen anledning att sprida det. */
+const tomt = (v) => !v || !String(v).trim();
+
 export const SALJARE = {
   namn: process.env.FORETAG_NAMN || "[Ditt företagsnamn]",
-  orgnr: process.env.FORETAG_ORGNR || "[Organisationsnummer]",
+  orgnr: tomt(process.env.FORETAG_ORGNR) ? null : process.env.FORETAG_ORGNR.trim(),
   adress: process.env.FORETAG_ADRESS || "[Gatuadress, postnummer, ort]",
   epost: process.env.FORETAG_EPOST || "[din@epost.se]",
-  momsreg: process.env.FORETAG_MOMSNR || "[SE000000000001]",
+  momsreg: tomt(process.env.FORETAG_MOMSNR) ? null : process.env.FORETAG_MOMSNR.trim(),
 };
+
+export const ARMOMSREGISTRERAD = Boolean(SALJARE.momsreg);
 
 export const APP_URL = process.env.APP_URL || "https://kvario.se";
 
@@ -98,7 +111,10 @@ export function brev({ rubrik, ingress, kropp, fot }) {
   <div style="border-top:1px solid ${F.linje};padding-top:16px;font-size:11px;line-height:1.7;color:${F.mist}">
     ${fot ? `<p style="margin:0 0 12px;font-size:12px;line-height:1.6;color:${F.dampad}">${fot}</p>` : ""}
     <b style="color:${F.black}">${fly(SALJARE.namn)}</b><br>
-    Org.nr ${fly(SALJARE.orgnr)} · Momsreg.nr ${fly(SALJARE.momsreg)}<br>
+    ${[
+      SALJARE.orgnr && `Org.nr ${fly(SALJARE.orgnr)}`,
+      SALJARE.momsreg && `Momsreg.nr ${fly(SALJARE.momsreg)}`,
+    ].filter(Boolean).join(" · ")}${SALJARE.orgnr || SALJARE.momsreg ? "<br>" : ""}
     ${fly(SALJARE.adress)}<br>
     <a href="mailto:${fly(SALJARE.epost)}" style="color:${F.mist}">${fly(SALJARE.epost)}</a>
     <p style="margin:14px 0 0">
@@ -113,14 +129,22 @@ export function brev({ rubrik, ingress, kropp, fot }) {
 /* Textversionen. Vissa klienter visar bara den, och ett brev utan
    textdel får sämre bedömning av skräppostfiltren. */
 export function textbrev({ rubrik, stycken, fot }) {
+  // Samma villkor som i HTML-foten. Saknas numren ska de utelämnas,
+  // inte skrivas ut som "null" — vilket de gjorde.
+  const identitet = [
+    SALJARE.orgnr && `org.nr ${SALJARE.orgnr}`,
+    SALJARE.momsreg && `momsreg.nr ${SALJARE.momsreg}`,
+  ].filter(Boolean).join(", ");
+
   return [
     rubrik,
     "",
     ...stycken,
     "",
     fot || "",
-    `${SALJARE.namn}, org.nr ${SALJARE.orgnr}`,
+    identitet ? `${SALJARE.namn}, ${identitet}` : SALJARE.namn,
+    SALJARE.adress,
     SALJARE.epost,
     APP_URL,
-  ].filter((r) => r !== null).join("\n");
+  ].filter((r) => r !== null && r !== undefined).join("\n");
 }
