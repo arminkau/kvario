@@ -1,4 +1,4 @@
-# Kvario
+﻿# Kvario
 
 Se direkt hur mycket av det du fakturerar som faktiskt är dina pengar.
 
@@ -64,7 +64,7 @@ Hemligheterna sätts separat och hamnar aldrig i git:
       PRICE_MONTH=price_... \
       PRICE_YEAR=price_... \
       SUPABASE_URL=https://....supabase.co \
-      SUPABASE_SERVICE_ROLE=ey... \
+      SUPABASE_SERVICE_ROLE_KEY=ey... \
       ADMIN_TOKEN=... \
       SUPABASE_HOOK_SECRET=... \
       SMTP_VARD=smtp.strato.com \

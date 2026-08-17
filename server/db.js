@@ -21,11 +21,27 @@ import { createClient } from "@supabase/supabase-js";
    ============================================================ */
 
 const url = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+/* Båda namnen godtas. Supabase kallar nyckeln service_role i sitt
+   gränssnitt, och det är lätt att sätta variabeln utan _KEY på
+   slutet — jag gjorde själv det misstaget i README, och resultatet
+   blev att db blev null och hela databaslagret tystnade. Betalningar
+   gick igenom utan att Pro aktiverades. Ett stavfel ska inte kunna
+   kosta det. */
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
 
 export const db = url && serviceKey
   ? createClient(url, serviceKey, { auth: { persistSession: false } })
   : null;
+
+/* Läses av /halsa. En server utan databas ser frisk ut utifrån —
+   den svarar på allt — men sparar inga ordrar och aktiverar ingen
+   prenumeration. Det måste synas. */
+export const dbKonfigurerad = Boolean(db);
+export const dbSaknar = [
+  !url && "SUPABASE_URL",
+  !serviceKey && "SUPABASE_SERVICE_ROLE_KEY",
+].filter(Boolean);
 
 const MOMSSATS = 0.25;
 

@@ -21,10 +21,24 @@ import {
   skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
   skickaProvbrev, provaEpost, PROVBREV,
 } from "./epost.js";
-import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db } from "./db.js";
+import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db, dbSaknar } from "./db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const app = express();
+
+/* Ett fel i en asynkron rutt blir en oupptäckt promise-rejektion,
+   och Node avslutar processen för sådana. En enda trasig förfrågan
+   tog alltså ner hela servern för alla andra — vi fick 502 och Fly
+   startade om.
+
+   Loggas i stället. Kvarstår problemet syns det i loggen; är det
+   övergående fortsätter servern att ta emot betalningar. */
+process.on("unhandledRejection", (fel) => {
+  console.error("Ohanterat fel, servern fortsätter:", fel?.stack || fel);
+});
+process.on("uncaughtException", (fel) => {
+  console.error("Ohanterat undantag, servern fortsätter:", fel?.stack || fel);
+});
 /* Både med och utan www. Den som skriver www.kvario.se i webbläsaren
    ska inte mötas av ett tyst CORS-fel vid första betalningen. */
 const tillatnaUrsprung = [
@@ -77,10 +91,24 @@ async function provaStripe() {
   return { ok: allaOk, lage, priser };
 }
 
+/* Slår mot databasen på riktigt. Att klienten finns säger ingenting
+   om att nyckeln duger eller att tabellerna är på plats. */
+async function provaDb() {
+  if (!db) return { ok: false, orsak: `Saknas: ${dbSaknar.join(", ")}` };
+  try {
+    const { error } = await db.from("subscriptions").select("user_id").limit(1);
+    if (error) return { ok: false, orsak: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, orsak: e?.message || "okänt fel" };
+  }
+}
+
 app.get("/halsa", async (_req, res) => {
-  const [epost, stripeLage] = await Promise.all([provaEpost(), provaStripe()]);
+  const [epost, stripeLage, databas] = await Promise.all([provaEpost(), provaStripe(), provaDb()]);
   res.json({
     appUrl: process.env.APP_URL || null,
+    databas,
     stripe: stripeLage,
     epost,
     smtp: epost,
@@ -443,6 +471,8 @@ app.post("/hook/nytt-konto", express.json(), async (req, res) => {
    dubbelt anrop inte ger två brev. */
 app.post("/jobb/provperiod", express.json(), async (req, res) => {
   if (!(await kravAdmin(req, res))) return;
+  // Utan den här kraschade anropet på db.from() av en null-referens.
+  if (!db) return res.status(503).json({ error: `Databasen saknas: ${dbSaknar.join(", ")}` });
 
   const DAGAR_INNAN = 3;
   const nu = new Date();
