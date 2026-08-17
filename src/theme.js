@@ -537,21 +537,27 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 @media (max-width:560px){
   .kvar{padding:14px 0 40px}
 
-  /* Luften mot skärmkanten. 14 px var för trångt — korten låg nästan
-     an mot glaset. Ytterkanten växer till 20, medan panelernas egen
-     padding krymper lika mycket, så att texten behåller sin bredd.
-     Det som flyttar sig är kortkanten, och det är den man ser.
+  /* Luften mot skärmkanten. Först 14 px, sedan 20 — fortfarande för
+     trångt i appen, där det inte finns något webbläsarfönster runt
+     omkring som ger ögat en ram. Nu 26, och panelernas egen padding
+     hålls nere så att texten inte blir smalare än den var.
+
+     Räknat på en 375 px skärm: kortet blir 323 px brett och texten
+     börjar 42 px från kanten.
 
      env() håller innehållet innanför rundade hörn och kameraurtag när
      telefonen ligger på sidan. max() gör att vanliga skärmar, där
-     env() är noll, ändå får sina 20 px. */
+     env() är noll, ändå får sina 26 px. */
   .wrap{
-    padding-left:max(20px, env(safe-area-inset-left));
-    padding-right:max(20px, env(safe-area-inset-right));
+    padding-left:max(26px, env(safe-area-inset-left));
+    padding-right:max(26px, env(safe-area-inset-right));
   }
-  .panel{padding:18px 17px}
-  .hero{padding:24px 18px 20px}
-  .alert{padding:14px 15px}
+  .panel{padding:18px 16px}
+  .hero{padding:24px 17px 20px}
+  .alert{padding:14px 14px}
+  /* Flikraden går ända ut med flit — den ska kunna dras i från
+     skärmkanten. Innehållet i den hålls i linje med korten. */
+  .flikar{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px}
 
   input,select,textarea{font-size:16px}
 

@@ -121,6 +121,15 @@ app.get("/halsa", async (_req, res) => {
   const [epost, stripeLage, databas] = await Promise.all([provaEpost(), provaStripe(), provaDb()]);
   res.json({
     appUrl: process.env.APP_URL || null,
+    /* De valfria bitarna. Utan dem fungerar allt annat, men något
+       tystnar — och tystnad är svårt att felsöka. Adressen skrivs ut
+       eftersom det är din egen och en felstavning annars bara syns
+       som uteblivna brev. */
+    konfig: {
+      adminEpost: process.env.ADMIN_EPOST || null,
+      hookHemlighetSatt: Boolean(process.env.SUPABASE_HOOK_SECRET),
+      adminTokenSatt: Boolean(process.env.ADMIN_TOKEN),
+    },
     databas,
     stripe: stripeLage,
     epost,
