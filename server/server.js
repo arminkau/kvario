@@ -48,11 +48,40 @@ app.get("/", (_req, res) => res.json({ tjanst: "kvario", ok: true }));
 
    smtp-fältet heter så av vana och behålls; via-fältet inuti säger
    vilken väg som faktiskt används. */
+/* Kontrollerar att nyckeln och priserna hör till samma läge.
+
+   Stripe håller sandbox och live helt åtskilda, och ett price-id
+   som skapats i sandbox finns inte i live. Utan den här kontrollen
+   upptäcks det vid första riktiga köpet, med "No such price" — för
+   en kund som redan bestämt sig för att betala. */
+async function provaStripe() {
+  const nyckel = process.env.STRIPE_SECRET_KEY;
+  if (!nyckel) return { ok: false, orsak: "STRIPE_SECRET_KEY saknas" };
+
+  const lage = nyckel.startsWith("sk_live_") ? "live"
+             : nyckel.startsWith("sk_test_") ? "test"
+             : "okänt";
+
+  const priser = {};
+  for (const [namn, id] of [["manad", process.env.PRICE_MONTH], ["ar", process.env.PRICE_YEAR]]) {
+    if (!id) { priser[namn] = "saknas"; continue; }
+    try {
+      const p = await stripe.prices.retrieve(id);
+      priser[namn] = `${(p.unit_amount / 100).toLocaleString("sv-SE")} ${p.currency.toUpperCase()}${p.active ? "" : " (INAKTIVT)"}`;
+    } catch (e) {
+      priser[namn] = `FEL: ${e?.message?.slice(0, 90) || "okänt"}`;
+    }
+  }
+
+  const allaOk = Object.values(priser).every((v) => !String(v).startsWith("FEL") && v !== "saknas");
+  return { ok: allaOk, lage, priser };
+}
+
 app.get("/halsa", async (_req, res) => {
-  const epost = await provaEpost();
+  const [epost, stripeLage] = await Promise.all([provaEpost(), provaStripe()]);
   res.json({
     appUrl: process.env.APP_URL || null,
-    stripe: Boolean(process.env.STRIPE_SECRET_KEY),
+    stripe: stripeLage,
     epost,
     smtp: epost,
   });
