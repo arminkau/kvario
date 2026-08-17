@@ -79,7 +79,17 @@ async function arAdminSession(req) {
 }
 
 async function kravAdmin(req, res) {
-  if (req.headers["x-admin-token"] === process.env.ADMIN_TOKEN) return true;
+  /* Båda måste finnas innan de jämförs.
+
+     Utan den kontrollen blev undefined === undefined sant på en
+     server där ADMIN_TOKEN glömts — och då räckte det att låta bli
+     att skicka huvudet för att komma in på återbetalningar och
+     kundlistor. Ett fel som blir farligt just när något annat redan
+     gått snett, vilket är den sämsta tidpunkten. */
+  const forvantat = process.env.ADMIN_TOKEN;
+  const skickat = req.headers["x-admin-token"];
+  if (forvantat && skickat && skickat === forvantat) return true;
+
   if (await arAdminSession(req)) return true;
   res.status(401).json({ error: "Obehörig" });
   return false;
