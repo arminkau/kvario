@@ -91,9 +91,30 @@ till e-postinloggningen, aldrig som ersättning. Se kommentaren i `src/auth.js`.
 Skickas från webhooken på `invoice.paid` — aldrig från frontend, eftersom
 bekräftelsen bara får gå ut när pengarna faktiskt kommit fram.
 
-Går över SMTP hos Strato, från `info@kvario.se`.
+Två vägar ut. `RESEND_API_KEY` väljer HTTPS, annars används SMTP.
 
-Sätt på servern:
+**Railway släpper inte ut SMTP.** Både 465 och 587 går i timeout därifrån,
+medan samma värd svarar på en halv sekund från en vanlig uppkoppling. Kör du
+på Railway måste du använda Resend.
+
+### Resend, över HTTPS
+
+    RESEND_API_KEY  re_...
+    EPOST_AVSANDARE Kvario <info@kvario.se>
+
+Domänen `kvario.se` måste vara verifierad hos Resend, annars avvisas breven.
+Verifieringen ger dig DNS-poster att lägga in hos Strato — lägg till dem
+**vid sidan av** de befintliga, ta inte bort något.
+
+SPF: du har redan `v=spf1 include:spf.strato.com ~all`. Skapa ingen andra
+post, utan skriv om den befintliga till att rymma båda:
+
+    v=spf1 include:spf.strato.com include:_spf.resend.com ~all
+
+DKIM: Resends post har ett eget selektornamn och krockar inte med Stratos
+`strato-dkim-0002` och `-0003`. Alla tre kan ligga samtidigt.
+
+### SMTP hos Strato
 
     SMTP_VARD       smtp.strato.com
     SMTP_PORT       465
@@ -101,15 +122,22 @@ Sätt på servern:
     SMTP_LOSENORD   (lösenordet till brevlådan)
     EPOST_AVSANDARE Kvario <info@kvario.se>
 
-Plus `FORETAG_NAMN`, `FORETAG_ORGNR`, `FORETAG_ADRESS`, `FORETAG_EPOST` och
-`FORETAG_MOMSNR` — de måste stå på bekräftelsen enligt bokföringslagen.
-
 Avsändaradressen måste vara samma konto som autentiseringen sker med. Strato
 avvisar brev där `from` pekar någon annanstans.
 
-Kontrollera med `GET /halsa` på servern. Den provar anslutningen utan att
-skicka något, så ett felstavat lösenord syns direkt i stället för vid första
-betalningen.
+Adressen slås upp till IPv4 i koden innan den skickas vidare. nodemailer gör
+annars ett eget uppslag och väljer slumpmässigt mellan A- och AAAA-posten,
+vilket ger fel varannan gång på värdar utan IPv6-väg ut.
+
+### Gemensamt
+
+Plus `FORETAG_NAMN`, `FORETAG_ORGNR`, `FORETAG_ADRESS`, `FORETAG_EPOST` och
+`FORETAG_MOMSNR` — de måste stå på bekräftelsen enligt bokföringslagen.
+
+Kontrollera med `GET /halsa`. Den provar vägen utan att skicka något, säger
+vilken transport som används och — för Resend — vilka domäner som är
+verifierade. Ett felstavat lösenord eller en ogiltig nyckel syns då direkt i
+stället för vid första betalningen.
 
 ### Vilka brev som skickas
 

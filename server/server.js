@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    Kvario — minimal prenumerationsserver
 
    Detta är den enda delen som inte kan ligga i webbläsaren:
@@ -19,7 +19,7 @@ import cors from "cors";
 import {
   skickaOrderbekraftelse, skickaValkommen, skickaProvperiodSlutar,
   skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
-  skickaProvbrev, provaSmtp, PROVBREV,
+  skickaProvbrev, provaEpost, PROVBREV,
 } from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db } from "./db.js";
 
@@ -35,15 +35,20 @@ const tillatnaUrsprung = [
 ];
 app.use(cors({ origin: tillatnaUrsprung }));
 
-/* Säger om servern når Strato, utan att skicka något. Ett felstavat
-   lösenord syns då direkt i stället för vid första betalningen — där
-   det bara hade blivit en rad i loggen som ingen läser. */
+/* Säger om servern kan skicka e-post, utan att skicka något. En fel
+   nyckel eller ett felstavat lösenord syns då direkt i stället för
+   vid första betalningen — där det bara hade blivit en rad i loggen
+   som ingen läser.
+
+   smtp-fältet heter så av vana och behålls; via-fältet inuti säger
+   vilken väg som faktiskt används. */
 app.get("/halsa", async (_req, res) => {
-  const smtp = await provaSmtp();
+  const epost = await provaEpost();
   res.json({
     appUrl: process.env.APP_URL || null,
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
-    smtp,
+    epost,
+    smtp: epost,
   });
 });
 

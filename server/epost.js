@@ -4,9 +4,19 @@
    Den här filen gör en enda sak: skickar. Vad som står i breven
    ligger i brev.js, och ramen kring dem i brevmall.js.
 
-   Går över SMTP från kvario.se hos Strato. Avsändaradressen måste
-   vara samma konto som autentiseringen sker med — Strato avvisar
-   brev där from pekar någon annanstans.
+   TVÅ VÄGAR UT
+
+   Resend över HTTPS när RESEND_API_KEY är satt, annars SMTP.
+
+   Skälet till att HTTPS finns är inte att den är finare, utan att
+   Railway inte släpper ut SMTP alls. Både 465 och 587 gick i
+   timeout därifrån, medan samma värd svarar på en halv sekund från
+   en vanlig uppkoppling. Port 443 är den enda ingen spärrar.
+
+   SMTP-vägen är kvar med flit. Den fungerar överallt utom just på
+   Railway, och koden ska inte tappa en förmåga bara för att en
+   plattform saknar den. Flyttar servern någon gång räcker det att
+   ta bort nyckeln.
 
    Inget utskick får fälla anropet som kallade hit. Breven skickas
    från webhookar där betalningen redan är genomförd, och en order
@@ -20,6 +30,46 @@ import * as BREV from "./brev.js";
 import { SALJARE } from "./brevmall.js";
 
 const AVSANDARE = process.env.EPOST_AVSANDARE || "Kvario <info@kvario.se>";
+
+/* Vilken väg som används. Läses av /halsa så att det syns utifrån
+   vilken transport som faktiskt är igång. */
+export const transportSort = () =>
+  process.env.RESEND_API_KEY ? "resend"
+  : (process.env.SMTP_VARD && process.env.SMTP_ANVANDARE && process.env.SMTP_LOSENORD) ? "smtp"
+  : null;
+
+/* ---------- Resend över HTTPS ----------
+   Ett vanligt POST-anrop, ingen klientbibliotek behövs. Adressen
+   måste ligga på en domän som verifierats hos Resend, annars
+   avvisas brevet med 403. */
+async function skickaViaResend(till, { amne, html, text }) {
+  const svar = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: AVSANDARE,
+      to: [till],
+      reply_to: SALJARE.epost,
+      subject: amne,
+      html,
+      text,
+    }),
+    // Utan detta kan ett hängande anrop hålla webhooken öppen tills
+    // Stripe ger upp och gör om den.
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!svar.ok) {
+    const kropp = await svar.text().catch(() => "");
+    let orsak = `HTTP ${svar.status}`;
+    try { orsak = JSON.parse(kropp).message || orsak; } catch { if (kropp) orsak = kropp.slice(0, 200); }
+    throw new Error(orsak);
+  }
+  return svar.json().catch(() => ({}));
+}
 
 /* ---------- SMTP ----------
    Anslutningen görs en gång och återanvänds. Nodemailer håller en
@@ -95,10 +145,10 @@ async function hamtaTransport() {
 }
 
 /* Skickar ett färdigt brev. Returnerar alltid, kastar aldrig. */
-async function skicka(till, { amne, html, text }) {
-  const t = await hamtaTransport();
-  if (!t) {
-    console.warn("SMTP är inte konfigurerat — inget brev skickat till", till);
+async function skicka(till, brevet) {
+  const sort = transportSort();
+  if (!sort) {
+    console.warn("Ingen e-posttransport är konfigurerad — inget brev skickat till", till);
     return { skickad: false, orsak: "okonfigurerad" };
   }
   if (!till || !/^\S+@\S+\.\S+$/.test(till)) {
@@ -106,12 +156,20 @@ async function skicka(till, { amne, html, text }) {
   }
 
   try {
-    await t.sendMail({ from: AVSANDARE, to: till, replyTo: SALJARE.epost, subject: amne, html, text });
-    console.log("Skickade brev:", amne, "->", till);
-    return { skickad: true };
+    if (sort === "resend") {
+      await skickaViaResend(till, brevet);
+    } else {
+      const t = await hamtaTransport();
+      await t.sendMail({
+        from: AVSANDARE, to: till, replyTo: SALJARE.epost,
+        subject: brevet.amne, html: brevet.html, text: brevet.text,
+      });
+    }
+    console.log(`Skickade brev via ${sort}:`, brevet.amne, "->", till);
+    return { skickad: true, via: sort };
   } catch (e) {
-    console.error("Kunde inte skicka brev:", amne, "->", till, "—", e?.message || e);
-    return { skickad: false, orsak: e?.message || "okänt fel" };
+    console.error(`Kunde inte skicka brev via ${sort}:`, brevet.amne, "->", till, "—", e?.message || e);
+    return { skickad: false, orsak: e?.message || "okänt fel", via: sort };
   }
 }
 
@@ -141,27 +199,61 @@ export const skickaAterbetalning = (epost, data) =>
 /* Provar anslutningen utan att skicka något. Anropas av /halsa på
    servern, så att ett felstavat lösenord upptäcks direkt i stället
    för vid första betalningen. */
-export async function provaSmtp() {
+export async function provaEpost() {
   /* Inställningarna redovisas oavsett utfall. Utan det går det inte
      att skilja "koden är inte utrullad än" från "det är verkligen
      nätverket" — och de två felen ser likadana ut utifrån.
      kod-fältet bumpas när något här ändras, så det syns direkt
      vilken version som svarar. */
-  const bas = {
-    kod: 3,
-    varden: process.env.SMTP_VARD || null,
-    port: Number(process.env.SMTP_PORT || 465),
-    anvandare: process.env.SMTP_ANVANDARE || null,
-    losenordSatt: Boolean(process.env.SMTP_LOSENORD),
-  };
+  const sort = transportSort();
+  const bas = { kod: 4, via: sort, avsandare: AVSANDARE };
+
+  if (!sort) {
+    return { ...bas, ok: false, orsak: "Varken RESEND_API_KEY eller SMTP-variablerna är satta" };
+  }
+
+  if (sort === "resend") {
+    /* Nyckeln provas mot domänlistan. Den skickar ingenting, men
+       säger både att nyckeln duger och vilka domäner som är
+       verifierade — det är den vanligaste orsaken till att brev
+       avvisas sedan. */
+    try {
+      const svar = await fetch("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!svar.ok) {
+        // Resend skriver ut vad som är fel med nyckeln. Ett bart
+        // "HTTP 400" hade lämnat en att gissa.
+        const kropp = await svar.text().catch(() => "");
+        let orsak = `HTTP ${svar.status}`;
+        try { orsak = JSON.parse(kropp).message || orsak; } catch { if (kropp) orsak = kropp.slice(0, 200); }
+        return { ...bas, ok: false, orsak };
+      }
+      const data = await svar.json();
+      const domaner = (data?.data || []).map((d) => `${d.name} (${d.status})`);
+      return { ...bas, ok: true, domaner };
+    } catch (e) {
+      return { ...bas, ok: false, orsak: e?.message || "okänt fel" };
+    }
+  }
 
   try {
     const t = await hamtaTransport();
-    if (!t) return { ...bas, ok: false, orsak: "SMTP-variablerna är inte satta" };
     await t.verify();
-    return { ...bas, ok: true, avsandare: AVSANDARE, ansluterTill: t.options.host };
+    return {
+      ...bas, ok: true,
+      varden: process.env.SMTP_VARD,
+      port: Number(process.env.SMTP_PORT || 465),
+      ansluterTill: t.options.host,
+    };
   } catch (e) {
-    return { ...bas, ok: false, orsak: e?.message || "okänt fel" };
+    return {
+      ...bas, ok: false,
+      varden: process.env.SMTP_VARD,
+      port: Number(process.env.SMTP_PORT || 465),
+      orsak: e?.message || "okänt fel",
+    };
   }
 }
 
