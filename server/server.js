@@ -94,13 +94,25 @@ async function provaStripe() {
 /* Slår mot databasen på riktigt. Att klienten finns säger ingenting
    om att nyckeln duger eller att tabellerna är på plats. */
 async function provaDb() {
-  if (!db) return { ok: false, orsak: `Saknas: ${dbSaknar.join(", ")}` };
+  const url = process.env.SUPABASE_URL || null;
+  if (!db) return { ok: false, url, orsak: `Saknas: ${dbSaknar.join(", ")}` };
+
   try {
     const { error } = await db.from("subscriptions").select("user_id").limit(1);
-    if (error) return { ok: false, orsak: error.message };
-    return { ok: true };
+    if (!error) return { ok: true, url };
+
+    /* supabase-js sväljer den underliggande orsaken och lämnar bara
+       "fetch failed", vilket kan betyda allt från fel adress till
+       stängd port. Vi frågar om direkt för att få veta vad det var. */
+    let detalj = null;
+    try {
+      await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(8000) });
+    } catch (e) {
+      detalj = e?.cause?.code || e?.cause?.message || e?.message || null;
+    }
+    return { ok: false, url, orsak: error.message, detalj };
   } catch (e) {
-    return { ok: false, orsak: e?.message || "okänt fel" };
+    return { ok: false, url, orsak: e?.message || "okänt fel", detalj: e?.cause?.code || null };
   }
 }
 
