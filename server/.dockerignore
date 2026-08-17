@@ -1,0 +1,12 @@
+# node_modules byggs om i avbilden. Kopieras de in härifrån följer
+# Windows-kompilerade paket med och kraschar på Alpine.
+node_modules
+npm-debug.log
+
+.env
+.env.*
+
+Dockerfile
+.dockerignore
+fly.toml
+.git

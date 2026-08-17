@@ -35,6 +35,12 @@ const tillatnaUrsprung = [
 ];
 app.use(cors({ origin: tillatnaUrsprung }));
 
+/* Lever servern? Svarar utan att röra vare sig databas eller mejl.
+   Plattformen pingar den här varje halvminut, och /halsa öppnar en
+   riktig SMTP-anslutning — den skulle hamra Strato i onödan och
+   dessutom göra hälsokontrollen beroende av att posten fungerar. */
+app.get("/", (_req, res) => res.json({ tjanst: "kvario", ok: true }));
+
 /* Säger om servern kan skicka e-post, utan att skicka något. En fel
    nyckel eller ett felstavat lösenord syns då direkt i stället för
    vid första betalningen — där det bara hade blivit en rad i loggen

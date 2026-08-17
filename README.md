@@ -43,13 +43,62 @@ Alla tre hittar Vite automatiskt: `npm run build`, utdata i `dist`. Gratis.
 
 ## Deploy — servern
 
-Servern kan INTE ligga på Vercels vanliga statiska hosting.
-Lägg `server/`-mappen på Railway, Render eller Fly.io.
+Servern kan INTE ligga på Vercels vanliga statiska hosting. Den ligger på
+Fly.io, och `server/` innehåller `Dockerfile` och `fly.toml`.
 
-1. Skapa produkten "Kvario Pro" i Stripe med två priser (99 kr/mån, 990 kr/år)
-2. Sätt miljövariablerna enligt `server/.env.example`
-3. Peka Stripes webhook mot `https://din-server/stripe-webhook`
-4. Sätt `VITE_API_URL` i frontendens miljövariabler och bygg om
+**Inte Railway.** De släpper inte ut SMTP — både 465 och 587 går i timeout
+därifrån, medan samma värd svarar på en halv sekund från en vanlig
+uppkoppling. Det går inte runt med portbyten. Vill du ändå ligga där måste
+e-posten gå över HTTPS via Resend, se avsnittet om orderbekräftelser.
+
+### Första gången
+
+    cd server
+    fly launch --no-deploy      # svara nej på att skriva över fly.toml
+
+Hemligheterna sätts separat och hamnar aldrig i git:
+
+    fly secrets set \
+      STRIPE_SECRET_KEY=sk_... \
+      STRIPE_WEBHOOK_SECRET=whsec_... \
+      PRICE_MONTH=price_... \
+      PRICE_YEAR=price_... \
+      SUPABASE_URL=https://....supabase.co \
+      SUPABASE_SERVICE_ROLE=ey... \
+      ADMIN_TOKEN=... \
+      SUPABASE_HOOK_SECRET=... \
+      SMTP_VARD=smtp.strato.com \
+      SMTP_PORT=465 \
+      SMTP_ANVANDARE=info@kvario.se \
+      SMTP_LOSENORD=... \
+      EPOST_AVSANDARE="Kvario <info@kvario.se>" \
+      APP_URL=https://kvario.se \
+      FORETAG_NAMN=... FORETAG_ORGNR=... FORETAG_ADRESS=... \
+      FORETAG_EPOST=info@kvario.se FORETAG_MOMSNR=...
+
+Sedan:
+
+    fly deploy
+
+### När adressen ändras
+
+Servern får en ny adress vid flytten. Tre ställen måste följa med, och
+missas något går det sönder tyst:
+
+1. **Stripe → Webhooks** — peka om till `https://ny-adress/stripe-webhook`.
+   Missas den slutar Pro aktiveras vid köp, och det märks först när en
+   riktig kund betalat.
+2. **Vercel → `VITE_API_URL`** — annars når appen inte betalningarna.
+   Kräver en ombyggnad av frontenden.
+3. **Supabase → Database → Webhooks** — `nytt-konto` pekar på servern.
+
+### Kontrollera
+
+    curl https://ny-adress/halsa
+
+`via` ska säga `smtp` och `ok` vara `true`. Rot-adressen `/` svarar utan att
+röra vare sig databas eller mejl, och är den Fly använder för sin egen
+hälsokontroll.
 
 ## Viktigt
 

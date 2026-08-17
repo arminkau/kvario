@@ -1,0 +1,37 @@
+# ============================================================
+# Fly.io
+#
+# Hemligheter sätts ALDRIG här. Filen ligger i git, och Stripes
+# nyckel, SMTP-lösenordet och Supabases service_role skulle då vara
+# offentliga. De sätts med "fly secrets set" — se README.
+# ============================================================
+
+app = "kvario-server"
+primary_region = "arn"          # Stockholm, närmast både kunder och Strato
+
+[build]
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # Maskinen får inte stängas av. Stripes webhook kommer när den
+  # kommer, och en kalluppstart mitt i ett köp riskerar att Pro inte
+  # aktiveras förrän Stripe gjort om anropet.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/"          # Inte /halsa — den öppnar en riktig SMTP-anslutning
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"      # Servern gör ingenting tungt; den väntar på anrop
