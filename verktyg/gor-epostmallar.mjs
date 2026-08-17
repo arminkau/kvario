@@ -257,42 +257,66 @@ const MALLAR = {
    ordmärket som bär igenkänningen i ett personligt brev ändå — i ett
    automatiskt kvitto är det symbolen, i ett svar från en människa är
    det namnet. */
-const ORDMARKE = `<p style="margin:0;font-size:21px;font-weight:700;letter-spacing:-.02em;color:${F.black}">Kvario<span style="color:${F.massing}">.</span></p>`;
+/* Märket som bild i stället för ritat. En <img> överlever att
+   editorn tolkar om HTML:en; nästlade tabeller med satta höjder gör
+   det inte. Bilden ligger på kvario.se, se verktyg/gor-brevlogga.mjs.
+
+   Att den kan blockeras spelar mindre roll här än i ett kvitto: den
+   som får ett personligt svar har oftast redan skrivit med
+   avsändaren, och alt-texten säger vad som saknas. */
+const BILDMARKE = `<table cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="padding-right:11px"><img src="https://kvario.se/logo/kvario-marke-80.png" width="40" height="40" alt="Kvario" style="display:block;border:0;border-radius:9px"></td>
+    <td style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:21px;font-weight:700;letter-spacing:-.02em;color:${F.black}">Kvario</td>
+  </tr></table>`;
 
 const EXTRA = {
   "svarsmall": {
     amne: "(byt ut ämnesraden)",
-    html: `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.7;color:${F.dampad};max-width:560px">
-  ${ORDMARKE}
+    html: `<div style="background:${F.botten};padding:24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <div style="max-width:560px;margin:0 auto;background:${F.papper};border-radius:6px;padding:32px">
 
-  <p style="margin:22px 0 0;font-size:15px;line-height:1.6;color:${F.black}"><b>Hej NAMN,</b></p>
+    ${BILDMARKE}
 
-  <p style="margin:14px 0 0">
-    Första stycket. Säg vad brevet gäller, kort — det är den raden som syns i
-    förhandsvisningen i inkorgen.
-  </p>
+    <p style="margin:22px 0 0;font-size:22px;font-weight:700;line-height:1.25;color:${F.black}">Rubrik här</p>
 
-  <p style="margin:14px 0 0">
-    Brödtext. Lägg till fler stycken genom att kopiera den här raden.
-  </p>
+    <p style="margin:10px 0 0;font-size:14px;line-height:1.65;color:${F.dampad}">
+      Första stycket. Säg vad brevet gäller, kort — det är den raden som syns i
+      förhandsvisningen i inkorgen.
+    </p>
 
-  <p style="margin:14px 0 0">
-    Vänliga hälsningar<br>
-    <b style="color:${F.black}">Ditt namn</b>
-  </p>
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.7;color:${F.dampad}">
+      Hej NAMN,
+    </p>
 
-  <p style="margin:24px 0 0;padding-top:14px;border-top:1px solid ${F.linje};font-size:12px;line-height:1.7;color:${F.mist}">
-    <b style="color:${F.black}">Kvario</b> — se vad av pengarna som faktiskt är dina<br>
-    <a href="https://kvario.se" style="color:${F.mist}">kvario.se</a> ·
-    <a href="mailto:info@kvario.se" style="color:${F.mist}">info@kvario.se</a>
-  </p>
+    <p style="margin:14px 0 0;font-size:14px;line-height:1.7;color:${F.dampad}">
+      Brödtext. Lägg till fler stycken genom att kopiera den här raden.
+    </p>
+
+    <div style="background:${F.botten};border-left:3px solid ${F.massing};border-radius:0 4px 4px 0;padding:15px 17px;margin-top:22px">
+      <p style="margin:0;font-size:12.5px;line-height:1.65;color:${F.dampad}">
+        Ruta för något som ska sticka ut. Ta bort den om brevet inte behöver någon.
+      </p>
+    </div>
+
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.7;color:${F.dampad}">
+      Vänliga hälsningar<br>
+      <b style="color:${F.black}">Ditt namn</b>
+    </p>
+
+    <p style="margin:26px 0 0;padding-top:16px;border-top:1px solid ${F.linje};font-size:11px;line-height:1.7;color:${F.mist}">
+      <b style="color:${F.black}">Kvario</b> — se vad av pengarna som faktiskt är dina<br>
+      <a href="https://kvario.se" style="color:${F.mist}">kvario.se</a> ·
+      <a href="mailto:info@kvario.se" style="color:${F.mist}">info@kvario.se</a>
+    </p>
+
+  </div>
 </div>`,
   },
 };
 
-const SIGNATUR = `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:${F.mist};padding-top:14px;border-top:1px solid ${F.linje};max-width:460px">
-  ${ORDMARKE}
-  <p style="margin:8px 0 0">
+const SIGNATUR = `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding-top:14px;border-top:1px solid ${F.linje};max-width:460px">
+  ${BILDMARKE}
+  <p style="margin:10px 0 0;font-size:12px;line-height:1.7;color:${F.mist}">
     <b style="color:${F.black}">Ditt namn</b><br>
     <a href="https://kvario.se" style="color:${F.mist}">kvario.se</a> ·
     <a href="mailto:info@kvario.se" style="color:${F.mist}">info@kvario.se</a>

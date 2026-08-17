@@ -555,6 +555,17 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
   .panel{padding:18px 16px}
   .hero{padding:24px 17px 20px}
   .alert{padding:14px 14px}
+
+  /* Landningssidan ligger utanför .wrap och fick därför ingen
+     marginal alls — texten låg an mot skärmkanten på 0 px. Den är
+     det första en ny besökare ser, och den enda sidan de flesta
+     någonsin ser. */
+  .lp{
+    padding-left:max(22px, env(safe-area-inset-left));
+    padding-right:max(22px, env(safe-area-inset-right));
+  }
+  .lpPanel{padding:22px 18px}
+  .lpHero{padding:18px 0 34px}
   /* Flikraden går ända ut med flit — den ska kunna dras i från
      skärmkanten. Innehållet i den hålls i linje med korten. */
   .flikar{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px}
