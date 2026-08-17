@@ -85,6 +85,21 @@ const AR = {
 
     begravningsavgift: 0.28,  // procent, betalas av alla
     kyrkoavgift: 1.03,        // procent, bara medlemmar
+
+    /* Slutlig skatt mot inbetald preliminärskatt.
+
+       Är för lite inbetalt löper kostnadsränta på underskottet. Den
+       räknas från 13 februari året efter, men bara på det som
+       överstiger 30 000 kr — betalar man in mellanskillnaden senast
+       den 12 blir det ingen ränta alls. Det datumet är hela poängen
+       med att visa siffran i tid.
+
+       Låg ränta är basräntan plus 1,25 procentenheter, och basräntan
+       följer statslåneräntan med golv på 1,25 %. */
+    rantefriTak: 30000,
+    kostnadsrantaLag: 0.0250,
+    rantedatumManad: 1,       // februari, nollindexerad
+    rantedatumDag: 12,        // sista dagen utan ränta
   },
 };
 
@@ -428,6 +443,52 @@ const ENSKILD = {
     };
   },
 };
+
+/* ---------- Preliminärskatt ----------
+   Enskild firma betalar debiterad preliminärskatt varje månad. Beloppet
+   sattes av Skatteverket utifrån förra årets deklaration, och nästan
+   ingen ändrar det.
+
+   Går det bättre än i fjol växer en kvarskatt som inte syns förrän i
+   maj året därpå. Går det sämre lånar man ut pengar till staten
+   räntefritt i ett år. Båda går att rätta med en preliminär
+   inkomstdeklaration — men bara om man vet om det i tid.
+
+   manadsbelopp är vad som faktiskt dras varje månad.
+   slutligSkatt är vad beräkningen landar på, alltså owed. */
+export function preliminarskatt({ manadsbelopp, slutligSkatt, ar = SENASTE_AR, nu = new Date() }) {
+  const v = varden(ar);
+  const perManad = Math.max(0, Number(manadsbelopp) || 0);
+  const inbetalt = perManad * 12;
+  const slutlig = Math.max(0, Number(slutligSkatt) || 0);
+
+  // Positivt = för lite inbetalt (kvarskatt), negativt = för mycket.
+  const differens = slutlig - inbetalt;
+  const borde = slutlig / 12;
+
+  /* Räntan löper på den del som passerar det räntefria taket, från
+     dagen efter sista betalningsdag. Vi visar årsräntan på det
+     överskjutande — den exakta räntan beror på när pengarna kommer in,
+     och att räkna dagar här skulle ge en falsk precision. */
+  const overTaket = Math.max(0, differens - v.rantefriTak);
+  const ranta = overTaket * v.kostnadsrantaLag;
+
+  // Sista dagen utan ränta ligger året efter inkomståret.
+  const rantefriTill = new Date(v.ar + 1, v.rantedatumManad, v.rantedatumDag);
+  const dagarKvar = Math.ceil((rantefriTill - nu) / 86400000);
+
+  return {
+    perManad, inbetalt, slutlig, differens, borde,
+    // Vad månadsbeloppet borde ändras till, avrundat uppåt till hundra.
+    forslag: Math.ceil(borde / 100) * 100,
+    overTaket, ranta,
+    rantefriTill, dagarKvar,
+    rantefriTak: v.rantefriTak,
+    // För lite inbetalt och nog stor differens för att räntan ska bita.
+    varning: differens > v.rantefriTak,
+    ar: v.ar,
+  };
+}
 
 /* ---------- Länder ---------- */
 

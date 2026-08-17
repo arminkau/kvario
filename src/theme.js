@@ -536,7 +536,22 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 
 @media (max-width:560px){
   .kvar{padding:14px 0 40px}
-  .wrap{padding:0 14px}
+
+  /* Luften mot skärmkanten. 14 px var för trångt — korten låg nästan
+     an mot glaset. Ytterkanten växer till 20, medan panelernas egen
+     padding krymper lika mycket, så att texten behåller sin bredd.
+     Det som flyttar sig är kortkanten, och det är den man ser.
+
+     env() håller innehållet innanför rundade hörn och kameraurtag när
+     telefonen ligger på sidan. max() gör att vanliga skärmar, där
+     env() är noll, ändå får sina 20 px. */
+  .wrap{
+    padding-left:max(20px, env(safe-area-inset-left));
+    padding-right:max(20px, env(safe-area-inset-right));
+  }
+  .panel{padding:18px 17px}
+  .hero{padding:24px 18px 20px}
+  .alert{padding:14px 15px}
 
   input,select,textarea{font-size:16px}
 

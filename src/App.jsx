@@ -12,7 +12,7 @@ import Admin from "./Admin.jsx";
 import { TESTKONTON, ADMIN_TESTDATA } from "./testdata";
 import { VILLKOR, VILLKOR_VERSION } from "./villkor";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
-import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER, SENASTE_AR, varden } from "./tax";
+import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER, SENASTE_AR, varden, preliminarskatt } from "./tax";
 import { Marginalkurvan } from "./Charts.jsx";
 import { kommandeDatum } from "./skattedatum";
 import DeladVy from "./DeladVy.jsx";
@@ -700,6 +700,15 @@ export default function KvarioApp() {
 
   const owed = (d.momsreg ? d.vatDue : 0) + (d.tax ? d.tax.owed : 0);
 
+  /* Preliminärskatten jämförs mot skatten och avgifterna, inte mot
+     owed — momsen ingår inte i den debiterade preliminärskatten utan
+     redovisas för sig. */
+  const prelim = useMemo(() => preliminarskatt({
+    manadsbelopp: settings.preliminarskatt,
+    slutligSkatt: d.tax ? d.tax.owed : 0,
+    ar: INKOMSTAR,
+  }), [settings.preliminarskatt, d.tax]);
+
   /* ---------- Checkout ----------
      Riktig betalning kräver ett riktigt konto — subscriptions har en
      foreign key mot auth.users. Bara "unconfigured" (ingen server,
@@ -1299,6 +1308,90 @@ export default function KvarioApp() {
                   rapporten Momsunderlag.
                 </p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* PRELIMINÄRSKATT
+            Skatteverket satte månadsbeloppet efter förra årets
+            deklaration. Går året bättre växer en kvarskatt som inte
+            syns förrän i maj året därpå — och den går att rätta med
+            en preliminär inkomstdeklaration, men bara av den som vet
+            om det i tid. Appen vet, så den säger till. */}
+        {d.tax && (
+          <div className="panel">
+            <div className="panelHead">
+              <h2>Preliminärskatt</h2>
+              <Info id="prelim" open={openInfo} setOpen={setOpenInfo} />
+              <span className="eyebrow">Det du betalar varje månad</span>
+            </div>
+            <InfoBox id="prelim" open={openInfo}>
+              Som enskild näringsidkare betalar du skatten löpande, med ett belopp
+              Skatteverket räknade fram ur din förra deklaration. Stämmer inte året med
+              fjolåret blir beloppet fel. Lämnar du en preliminär inkomstdeklaration
+              ändras det — det går att göra när som helst under året, och flera gånger.
+              Betalar du för mycket får du tillbaka det först året därpå, utan ränta.
+            </InfoBox>
+
+            <div className="envRow">
+              <div>
+                <div className="eyebrow">Du betalar per månad</div>
+                <input className="w130 num big" type="number" min="0" step="100"
+                       value={settings.preliminarskatt ?? ""}
+                       placeholder="0"
+                       onChange={(e) => setSetting("preliminarskatt", Math.max(0, +e.target.value || 0))} />
+              </div>
+              <div>
+                <div className="eyebrow">Borde vara</div>
+                <div className="midnum">{kr(prelim.forslag)} kr</div>
+              </div>
+              <div className={prelim.differens > 0 ? "gap warn" : "gap ok"}>
+                <div className="eyebrow">
+                  {prelim.differens > 0 ? "Saknas på året" : "Betalt för mycket"}
+                </div>
+                <div className="midnum">{kr(Math.abs(prelim.differens))} kr</div>
+              </div>
+            </div>
+
+            {!settings.preliminarskatt ? (
+              <p className="limitNote">
+                Fyll i vad som dras varje månad så räknar Kvario ut om beloppet stämmer
+                med hur året faktiskt går. Siffran står på ditt beslut om debiterad
+                preliminärskatt, och på skattekontot.
+              </p>
+            ) : prelim.varning ? (
+              <div className="alert" style={{ marginTop: 14, marginBottom: 0 }}>
+                <span className="bang">!</span>
+                <p>
+                  <strong>Du ligger {kr(prelim.differens)} kr efter.</strong>{" "}
+                  {kr(prelim.rantefriTak)} kr är räntefria, men på de
+                  resterande {kr(prelim.overTaket)} kr börjar kostnadsränta löpa —
+                  ungefär {kr(prelim.ranta)} kr på ett år.{" "}
+                  Betalar du in mellanskillnaden senast{" "}
+                  {prelim.rantefriTill.toLocaleDateString("sv-SE")} slipper du den helt
+                  {prelim.dagarKvar > 0 && <> — {prelim.dagarKvar} dagar kvar</>}.{" "}
+                  Höj hellre månadsbeloppet till {kr(prelim.forslag)} kr med en preliminär
+                  inkomstdeklaration, så jämnar det ut sig av sig självt.
+                </p>
+              </div>
+            ) : prelim.differens > 0 ? (
+              <p className="limitNote">
+                Du ligger {kr(prelim.differens)} kr efter, vilket ryms under det räntefria
+                taket på {kr(prelim.rantefriTak)} kr. Ingen ränta, men summan ska betalas
+                senast {prelim.rantefriTill.toLocaleDateString("sv-SE")}.
+              </p>
+            ) : prelim.differens < -5000 ? (
+              <p className="limitNote">
+                Du betalar {kr(Math.abs(prelim.differens))} kr för mycket på ett år. Pengarna
+                kommer tillbaka, men först vid slutskattebeskedet och utan ränta. Sänk
+                månadsbeloppet till {kr(prelim.forslag)} kr med en preliminär
+                inkomstdeklaration så behåller du dem nu i stället.
+              </p>
+            ) : (
+              <p className="limitNote">
+                Månadsbeloppet ligger rätt mot hur året går hittills. Ändras omsättningen
+                mycket är det värt att titta igen.
+              </p>
             )}
           </div>
         )}
