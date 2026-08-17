@@ -196,6 +196,22 @@ export const skickaUppsagd = (epost, data) =>
 export const skickaAterbetalning = (epost, data) =>
   skicka(epost, BREV.aterbetalning(data));
 
+/* ---------- Till dig själv ----------
+   Går bara om ADMIN_EPOST är satt. Utan den skickas ingenting, och
+   det är rätt: en server som mejlar till en adress ingen läser är
+   bara brus i loggen. */
+const adminAdress = () => process.env.ADMIN_EPOST || null;
+
+export const skickaAdminNyttKonto = (data) => {
+  const till = adminAdress();
+  return till ? skicka(till, BREV.adminNyttKonto(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
+};
+
+export const skickaAdminNyPrenumeration = (data) => {
+  const till = adminAdress();
+  return till ? skicka(till, BREV.adminNyPrenumeration(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
+};
+
 /* Provar anslutningen utan att skicka något. Anropas av /halsa på
    servern, så att ett felstavat lösenord upptäcks direkt i stället
    för vid första betalningen. */
@@ -275,6 +291,11 @@ export const PROVBREV = {
   }),
   uppsagd: () => BREV.uppsagd({ slutar: new Date(Date.now() + 21 * 86400000) }),
   aterbetalning: () => BREV.aterbetalning({ ordernummer: "K-PROV-0000", belopp: 9900, helt: true }),
+  adminkonto: () => BREV.adminNyttKonto({ epost: "ny.kund@example.com", antal: 12 }),
+  adminkop: () => BREV.adminNyPrenumeration({
+    epost: "ny.kund@example.com", namn: "Ny Kund",
+    ordernummer: "K-PROV-0000", belopp: 9900, interval: "month",
+  }),
 };
 
 export const skickaProvbrev = (epost, sort) => {

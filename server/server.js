@@ -20,6 +20,7 @@ import {
   skickaOrderbekraftelse, skickaValkommen, skickaProvperiodSlutar,
   skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
   skickaProvbrev, provaEpost, PROVBREV,
+  skickaAdminNyttKonto, skickaAdminNyPrenumeration,
 } from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db, dbSaknar } from "./db.js";
 
@@ -357,6 +358,16 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
             angerrattSamtycke: order.angerratt_samtycke,
             fakturaUrl: faktura.hosted_invoice_url || faktura.invoice_pdf,
           });
+
+          // Ditt eget besked, efter kundens kvitto. Samma spärr mot
+          // dubbletter gäller — Stripe gör om leveransen vid fel.
+          await skickaAdminNyPrenumeration({
+            epost: order.epost,
+            namn: order.namn,
+            ordernummer: order.ordernummer,
+            belopp: order.belopp_ore,
+            interval,
+          });
         }
       } catch (err) {
         // Ett fel här får aldrig fälla webhooken. Svarar vi något
@@ -471,6 +482,21 @@ app.post("/hook/nytt-konto", express.json(), async (req, res) => {
   if (!epost) return res.status(400).json({ error: "Ingen e-postadress i anropet" });
 
   const r = await skickaValkommen(epost);
+
+  /* Ditt eget besked. Skickas efter kundens, och får inte fälla
+     anropet — uteblir det spelar det ingen roll för användaren som
+     just registrerat sig. */
+  let antal = null;
+  try {
+    if (db) {
+      const { count } = await db.from("subscriptions").select("user_id", { count: "exact", head: true });
+      antal = count ?? null;
+    }
+    await skickaAdminNyttKonto({ epost, antal });
+  } catch (err) {
+    console.error("Kunde inte skicka adminbesked:", err?.message || err);
+  }
+
   res.json({ skickad: r.skickad });
 });
 

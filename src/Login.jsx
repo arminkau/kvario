@@ -13,6 +13,35 @@ export default function Login({ onBack, onTestkonto }) {
 
   const giltigEpost = /^\S+@\S+\.\S+$/.test(email);
 
+  /* Supabase svarar på engelska. Ett obegripligt "Något gick fel"
+     lämnade användaren utan att veta om adressen var upptagen, om
+     lösenordet var fel eller om det bara var trögt just då — och
+     alla tre kräver olika saker av en.
+
+     Att kontot redan finns berättas med flit. Supabase har redan
+     avslöjat det i sitt eget svar, så tystnaden här skyddar
+     ingenting men lämnar kvar en person som inte kommer vidare. */
+  const tolkaFel = (e, vilketLage) => {
+    const m = String(e?.message || "");
+    if (/already registered|already been registered|User already/i.test(m))
+      return "Det finns redan ett konto med den adressen. Logga in i stället, eller välj Glömt lösenordet.";
+    if (/Invalid login credentials/i.test(m))
+      return vilketLage === "in"
+        ? "Fel e-post eller lösenord."
+        : "Uppgifterna godtogs inte. Kontrollera adressen.";
+    if (/Email not confirmed|not confirmed/i.test(m))
+      return "Kontot är inte bekräftat än. Klicka på länken i mejlet vi skickade, eller välj Glömt lösenordet.";
+    if (/rate limit|too many|For security purposes/i.test(m))
+      return "För många försök på kort tid. Vänta någon minut och prova igen.";
+    if (/Password should be|password.*6/i.test(m))
+      return "Lösenordet måste vara minst 6 tecken.";
+    if (/invalid format|Unable to validate email/i.test(m))
+      return "E-postadressen ser inte giltig ut. Kontrollera stavningen.";
+    if (/fetch|network|Failed to fetch/i.test(m))
+      return "Ingen kontakt med servern. Kontrollera din uppkoppling.";
+    return "Något gick fel. Försök igen om en stund.";
+  };
+
   const submit = async () => {
     if (!giltigEpost) return setError("Skriv en giltig e-postadress.");
     if (losenord.length < 6) return setError("Lösenordet måste vara minst 6 tecken.");
@@ -28,9 +57,7 @@ export default function Login({ onBack, onTestkonto }) {
         if (!session) { setUppSkickad(true); setStatus("idle"); return; }
       }
     } catch (e) {
-      setError(e.message === "Invalid login credentials"
-        ? "Fel e-post eller lösenord."
-        : "Något gick fel. Försök igen om en stund.");
+      setError(tolkaFel(e, lage));
       setStatus("idle");
     }
   };

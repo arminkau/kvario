@@ -272,6 +272,57 @@ export function uppsagd({ slutar }) {
   };
 }
 
+/* ---------- Till dig själv ----------
+   Ett kort brev per händelse som betyder något. Meningen är att du
+   ska veta hur det går utan att logga in och leta — men bara för
+   det som faktiskt är nyheter. Brev om sådant man kan räkna ut lär
+   en att sluta läsa dem. */
+export function adminNyttKonto({ epost, antal }) {
+  const rubrik = "Ny registrering";
+  return {
+    amne: `Kvario: ny registrering — ${epost}`,
+    html: brev({
+      rubrik,
+      ingress: `<b>${fly(epost)}</b> har skapat ett konto och börjat sin provperiod.`,
+      kropp: rader([
+        ["Adress", fly(epost)],
+        ["Tidpunkt", new Date().toLocaleString("sv-SE")],
+        ...(antal ? [["Konton totalt", String(antal), true]] : []),
+      ]),
+    }),
+    text: textbrev({
+      rubrik,
+      stycken: [`${epost} har skapat ett konto.`, `Tidpunkt: ${new Date().toLocaleString("sv-SE")}`],
+    }),
+  };
+}
+
+export function adminNyPrenumeration({ epost, namn, ordernummer, belopp, interval }) {
+  const rubrik = "Ny prenumeration";
+  const plan = interval === "month" ? "månadsvis" : "årsvis";
+  return {
+    amne: `Kvario: ny prenumeration — ${kr(belopp)} kr ${plan}`,
+    html: brev({
+      rubrik,
+      ingress: `<b>${fly(namn || epost)}</b> har tecknat Kvario Pro, ${plan}.`,
+      kropp: rader([
+        ["Ordernummer", `<span style="font-family:monospace">${fly(ordernummer)}</span>`],
+        ["Kund", fly(namn ? `${namn} (${epost})` : epost)],
+        ["Plan", `Pro, ${plan}`],
+        ["Belopp", `${kr(belopp)} kr`, true],
+      ]),
+    }),
+    text: textbrev({
+      rubrik,
+      stycken: [
+        `${namn || epost} har tecknat Kvario Pro, ${plan}.`,
+        `Ordernummer: ${ordernummer}`,
+        `Belopp: ${kr(belopp)} kr`,
+      ],
+    }),
+  };
+}
+
 /* ---------- 6. Återbetalning ---------- */
 export function aterbetalning({ ordernummer, belopp, helt }) {
   const m = momsdelar(belopp);

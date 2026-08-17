@@ -21,6 +21,10 @@ const F = {
   massingMork: "#8C6418",
   mist: "#8698A1",
   varning: "#9A4A25",
+  // Märkets band, samma som i appikonen
+  band1: "#3E5566",
+  band2: "#63798A",
+  band3: "#8A9CA8",
 };
 
 /* Momsnumret avgör om säljaren är momsregistrerad. Är det tomt tas
@@ -56,6 +60,43 @@ export function fly(text) {
   return String(text ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/* ---------- Märket ----------
+   Ritas med tabellceller som har bakgrundsfärg, inte som bild.
+
+   Skälet är att Gmail och Outlook blockerar bilder tills mottagaren
+   tillåter dem — och det första man ser i ett kvitto ska inte vara
+   en tom ruta med ett kryss. Bakgrundsfärg på en cell renderas
+   överallt, ända ner i Outlook 2007.
+
+   Höjderna följer ikonens proportioner: tre band som avtar, och
+   mässingsfältet störst underst. font-size och line-height nollas i
+   varje cell, annars lägger Outlook till en textrads höjd. */
+function band(hojd, farg) {
+  return `<tr><td height="${hojd}" style="height:${hojd}px;background:${farg};font-size:0;line-height:0">&nbsp;</td></tr>`;
+}
+
+export function marke() {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>
+    <td width="40" style="padding-right:11px">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="40"
+             style="border-collapse:collapse;background:${F.black};border-radius:9px">
+        <tr><td style="padding:5px">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="30" style="border-collapse:collapse">
+            ${band(6, F.band1)}
+            ${band(1, F.black)}
+            ${band(4, F.band2)}
+            ${band(1, F.black)}
+            ${band(4, F.band3)}
+            ${band(1, F.black)}
+            ${band(13, F.massing)}
+          </table>
+        </td></tr>
+      </table>
+    </td>
+    <td style="font-size:21px;font-weight:700;letter-spacing:-.02em;color:${F.black};vertical-align:middle">Kvario</td>
+  </tr></table>`;
 }
 
 export function knapp(text, url) {
@@ -95,12 +136,7 @@ export function brev({ rubrik, ingress, kropp, fot }) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:${F.papper};border-radius:6px">
 
 <tr><td style="padding:32px 32px 0">
-  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-    <td width="26" style="padding-right:9px">
-      <div style="width:26px;height:26px;background:${F.black};border-radius:6px"></div>
-    </td>
-    <td style="font-size:19px;font-weight:700;letter-spacing:-.02em;color:${F.black}">Kvario</td>
-  </tr></table>
+  ${marke()}
   <h1 style="font-size:22px;font-weight:700;margin:20px 0 6px;line-height:1.25">${fly(rubrik)}</h1>
   ${ingress ? `<p style="font-size:14px;line-height:1.6;color:${F.dampad};margin:0 0 24px">${ingress}</p>` : ""}
 </td></tr>
