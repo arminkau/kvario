@@ -206,7 +206,7 @@ export async function provaEpost() {
      kod-fältet bumpas när något här ändras, så det syns direkt
      vilken version som svarar. */
   const sort = transportSort();
-  const bas = { kod: 4, via: sort, avsandare: AVSANDARE };
+  const bas = { kod: 5, via: sort, avsandare: AVSANDARE };
 
   if (!sort) {
     return { ...bas, ok: false, orsak: "Varken RESEND_API_KEY eller SMTP-variablerna är satta" };
@@ -238,22 +238,25 @@ export async function provaEpost() {
     }
   }
 
+  /* Längden, inte lösenordet. Ett värde som satts via skalet kan ha
+     kapats vid ett $, & eller ett mellanslag utan att någon märker
+     det — och utfallet blir "wrong user/password", precis som om
+     lösenordet vore fel. Stämmer inte längden med vad du skrev är
+     det skalet som ätit, inte Strato som nekar. */
+  const smtpBas = {
+    ...bas,
+    varden: process.env.SMTP_VARD,
+    port: Number(process.env.SMTP_PORT || 465),
+    anvandare: process.env.SMTP_ANVANDARE,
+    losenordLangd: (process.env.SMTP_LOSENORD || "").length,
+  };
+
   try {
     const t = await hamtaTransport();
     await t.verify();
-    return {
-      ...bas, ok: true,
-      varden: process.env.SMTP_VARD,
-      port: Number(process.env.SMTP_PORT || 465),
-      ansluterTill: t.options.host,
-    };
+    return { ...smtpBas, ok: true, ansluterTill: t.options.host };
   } catch (e) {
-    return {
-      ...bas, ok: false,
-      varden: process.env.SMTP_VARD,
-      port: Number(process.env.SMTP_PORT || 465),
-      orsak: e?.message || "okänt fel",
-    };
+    return { ...smtpBas, ok: false, orsak: e?.message || "okänt fel" };
   }
 }
 
