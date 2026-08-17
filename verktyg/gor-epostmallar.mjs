@@ -171,16 +171,106 @@ const MALLAR = {
       ),
     }),
   },
+
+  "6-adress-andrad": {
+    amne: "Din e-postadress har ändrats",
+    html: beskedmall({
+      rubrik: "Din e-postadress har ändrats",
+      ingress: "Adressen till ditt Kvario-konto har ändrats från <b>{{ .OldEmail }}</b> till <b>{{ .Email }}</b>. Logga in med den nya adressen från och med nu.",
+      avslut: varningsruta(
+        "<b>Var det inte du?</b> Hör av dig till " +
+        '<a href="mailto:info@kvario.se" style="color:#8C6418">info@kvario.se</a> omedelbart. ' +
+        "Ett adressbyte du inte begärt betyder att någon annan kommit åt kontot, och då måste " +
+        "vi spärra det innan lösenordet hinner ändras."
+      ),
+    }),
+  },
+
+  /* Engångskod i stället för länk. Används när Supabase kräver att
+     man bekräftar sig igen inför något känsligt. Koden skrivs stor
+     och glest — den ska läsas av från en skärm och skrivas in på en
+     annan, ofta med tummen. */
+  "7-bekrafta-igen": {
+    amne: "Din engångskod till Kvario",
+    html: beskedmall({
+      rubrik: "Bekräfta att det är du",
+      ingress: "Skriv in koden nedan för att fortsätta. Den gäller i tio minuter.",
+      avslut: `<div style="background:${F.botten};border-radius:5px;padding:22px;margin-top:22px;text-align:center">
+        <div style="font-family:'SF Mono',Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:${F.black}">{{ .Token }}</div>
+      </div>
+      ${lugnruta("Har du inte begärt koden kan du bortse från brevet. Dela den aldrig med någon — vi frågar aldrig efter den.")}`,
+    }),
+  },
+
+  "8-inbjudan": {
+    amne: "Du är inbjuden till Kvario",
+    html: mall({
+      rubrik: "Du är inbjuden till Kvario",
+      ingress: "Någon har bjudit in dig att använda Kvario — verktyget som visar vad som blir kvar av det du fakturerar när moms, skatt och egenavgifter är betalda.",
+      knapptext: "Skapa ditt konto",
+      avslut: lugnruta("Känner du inte igen inbjudan kan du bortse från brevet. Inget konto skapas förrän du klickat."),
+    }),
+  },
+
+  /* Magisk länk finns kvar i Supabase även om appen inte använder
+     den längre. Skulle den slås på av misstag ska brevet ändå se ut
+     som våra andra. */
+  "9-inloggningslank": {
+    amne: "Din inloggningslänk till Kvario",
+    html: mall({
+      rubrik: "Logga in på Kvario",
+      ingress: "Klicka nedan så loggas du in. Länken gäller en gång och i en timme.",
+      knapptext: "Logga in",
+      avslut: lugnruta("Har du inte begärt länken kan du bortse från brevet. Ingen kommer in på ditt konto utan att klicka på den."),
+    }),
+  },
 };
+
+/* ---------- Svarsmall och signatur ----------
+   Inte till Supabase, utan till dig. Den som svarar en kund från
+   webbmailen skickar annars ett brev som ser ut som vilket som
+   helst — och kunden känner inte igen avsändaren från kvittot hen
+   fick dagen innan. */
+const EXTRA = {
+  "svarsmall": {
+    amne: "(byt ut ämnesraden)",
+    html: mall({
+      rubrik: "RUBRIK HÄR",
+      ingress: "Första stycket, det som syns i förhandsvisningen i inkorgen. Håll det kort och säg vad brevet gäller.",
+      knapptext: "Öppna Kvario",
+      avslut: `<p style="margin:26px 0 0;font-size:13.5px;line-height:1.7;color:${F.dampad}">
+        Brödtext här. Byt ut och lägg till stycken efter behov.
+      </p>
+      <p style="margin:18px 0 0;font-size:13.5px;line-height:1.7;color:${F.dampad}">
+        Vänliga hälsningar<br><b style="color:${F.black}">Ditt namn</b><br>Kvario
+      </p>`,
+    }).replace("{{ .ConfirmationURL }}", "https://kvario.se")
+      .replace("{{ .ConfirmationURL }}", "https://kvario.se"),
+  },
+};
+
+const SIGNATUR = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <tr><td style="padding-top:14px;border-top:1px solid ${F.linje}">
+    ${MARKE}
+    <p style="margin:10px 0 0;font-size:12px;line-height:1.7;color:${F.mist}">
+      <b style="color:${F.black}">Ditt namn</b><br>
+      <a href="https://kvario.se" style="color:${F.mist};text-decoration:none">kvario.se</a> ·
+      <a href="mailto:info@kvario.se" style="color:${F.mist};text-decoration:none">info@kvario.se</a>
+    </p>
+  </td></tr>
+</table>`;
 
 mkdirSync(UT, { recursive: true });
 const register = [];
 
-for (const [namn, m] of Object.entries(MALLAR)) {
+for (const [namn, m] of Object.entries({ ...MALLAR, ...EXTRA })) {
   writeFileSync(join(UT, `${namn}.html`), m.html);
   register.push(`${namn}.html  —  ämne: ${m.amne}`);
   console.log(`skrev ${namn}.html  (${m.html.length} tecken)`);
 }
+
+writeFileSync(join(UT, "signatur.html"), SIGNATUR);
+console.log(`skrev signatur.html  (${SIGNATUR.length} tecken)`);
 
 writeFileSync(join(UT, "LASMIG.txt"),
 `E-POSTMALLAR TILL SUPABASE
@@ -196,11 +286,27 @@ ${register.join("\n")}
 VARIABLERNA MÅSTE STÅ KVAR ORÖRDA:
   {{ .ConfirmationURL }}   länken Supabase skapar
   {{ .NewEmail }}          den nya adressen vid adressbyte
+  {{ .OldEmail }}          den gamla adressen
+  {{ .Email }}             kontots adress
+  {{ .Token }}             engångskoden vid ombekräftelse
 
-Skrivs de fel skickas brevet utan fungerande länk, och mottagaren
-kommer inte vidare.
+Skrivs de fel skickas brevet utan fungerande länk eller kod, och
+mottagaren kommer inte vidare.
 
-Mall 4 och 5 syns bara om Secure email change respektive
-lösenordsnotiser är påslagna under Authentication.
+Mall 4, 5 och 6 syns bara om Secure email change respektive
+aviseringar är påslagna under Authentication. Mall 8 och 9 används
+bara om du bjuder in någon eller slår på magisk länk — de ligger här
+så att de inte kommer på engelska om det sker.
+
+INTE TILL SUPABASE
+
+  svarsmall.html   Tom mall att skriva egna brev i. Byt rubrik,
+                   ingress och brödtext. Används när du skickar
+                   något själv, t.ex. ett svar till en kund som
+                   behöver mer än några rader.
+
+  signatur.html    Kort signatur att lägga in i webbmailen under
+                   Inställningar -> Signatur. Gör att dina svar ser
+                   ut som samma avsändare som kvittona.
 `);
 console.log("skrev LASMIG.txt");

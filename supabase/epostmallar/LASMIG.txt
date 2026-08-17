@@ -11,13 +11,34 @@ Klistras in under Authentication -> Emails -> Templates.
 3-ny-epostadress.html  —  ämne: Bekräfta din nya e-postadress
 4-godkann-adressbyte.html  —  ämne: Din e-postadress håller på att bytas
 5-losenord-andrat.html  —  ämne: Ditt lösenord har ändrats
+6-adress-andrad.html  —  ämne: Din e-postadress har ändrats
+7-bekrafta-igen.html  —  ämne: Din engångskod till Kvario
+8-inbjudan.html  —  ämne: Du är inbjuden till Kvario
+9-inloggningslank.html  —  ämne: Din inloggningslänk till Kvario
+svarsmall.html  —  ämne: (byt ut ämnesraden)
 
 VARIABLERNA MÅSTE STÅ KVAR ORÖRDA:
   {{ .ConfirmationURL }}   länken Supabase skapar
   {{ .NewEmail }}          den nya adressen vid adressbyte
+  {{ .OldEmail }}          den gamla adressen
+  {{ .Email }}             kontots adress
+  {{ .Token }}             engångskoden vid ombekräftelse
 
-Skrivs de fel skickas brevet utan fungerande länk, och mottagaren
-kommer inte vidare.
+Skrivs de fel skickas brevet utan fungerande länk eller kod, och
+mottagaren kommer inte vidare.
 
-Mall 4 och 5 syns bara om Secure email change respektive
-lösenordsnotiser är påslagna under Authentication.
+Mall 4, 5 och 6 syns bara om Secure email change respektive
+aviseringar är påslagna under Authentication. Mall 8 och 9 används
+bara om du bjuder in någon eller slår på magisk länk — de ligger här
+så att de inte kommer på engelska om det sker.
+
+INTE TILL SUPABASE
+
+  svarsmall.html   Tom mall att skriva egna brev i. Byt rubrik,
+                   ingress och brödtext. Används när du skickar
+                   något själv, t.ex. ett svar till en kund som
+                   behöver mer än några rader.
+
+  signatur.html    Kort signatur att lägga in i webbmailen under
+                   Inställningar -> Signatur. Gör att dina svar ser
+                   ut som samma avsändare som kvittona.
