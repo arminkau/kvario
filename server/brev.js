@@ -323,6 +323,51 @@ export function adminNyPrenumeration({ epost, namn, ordernummer, belopp, interva
   };
 }
 
+/* Begäran om återbetalning. Den enda av adminbreven som är
+   brådskande: ångerrätten ger kunden pengarna tillbaka inom 14
+   dagar från att du fått veta, och en begäran som ligger osedd i
+   adminpanelen är en frist som rinner ut. */
+export function adminAterbetalningBegard({ epost, belopp, orsak, automatisk }) {
+  const rubrik = automatisk ? "Återbetalning ska beviljas" : "Begäran om återbetalning";
+  return {
+    amne: `Kvario: ${automatisk ? "ångerrätt åberopad" : "återbetalning begärd"} — ${kr(belopp)} kr`,
+    html: brev({
+      rubrik,
+      ingress: `<b>${fly(epost)}</b> har begärt ${kr(belopp)} kr tillbaka.`,
+      kropp: `
+        ${rader([
+          ["Kund", fly(epost)],
+          ["Belopp", `${kr(belopp)} kr`],
+          ...(orsak ? [["Angiven orsak", fly(orsak)]] : []),
+        ])}
+        <div style="height:22px"></div>
+        ${automatisk
+          ? ruta("Inom ångerfristen",
+              "Köpet gjordes för mindre än 14 dagar sedan och kunden har inte avsagt sig ångerrätten. " +
+              "Återbetalningen ska beviljas — det är inte en bedömningsfråga. Enligt distansavtalslagen " +
+              "ska pengarna vara tillbaka inom 14 dagar från att begäran kom in.", "varning")
+          : ruta("Utanför ångerfristen",
+              "Köpet ligger mer än 14 dagar tillbaka. Du avgör själv om du vill bevilja, men " +
+              "en nöjd före detta kund talar oftare väl om tjänsten än en missnöjd.")}
+        <div style="height:22px"></div>
+        ${knapp("Hantera i adminpanelen", `${APP_URL}/?flik=konto`)}`,
+    }),
+    text: textbrev({
+      rubrik,
+      stycken: [
+        `${epost} har begärt ${kr(belopp)} kr tillbaka.`,
+        orsak ? `Orsak: ${orsak}` : null,
+        "",
+        automatisk
+          ? "Inom ångerfristen — ska beviljas. Pengarna ska vara tillbaka inom 14 dagar."
+          : "Utanför ångerfristen — du avgör själv.",
+        "",
+        APP_URL,
+      ].filter(Boolean),
+    }),
+  };
+}
+
 /* ---------- 6. Återbetalning ---------- */
 export function aterbetalning({ ordernummer, belopp, helt }) {
   const m = momsdelar(belopp);

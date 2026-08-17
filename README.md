@@ -212,6 +212,44 @@ Prova vilket som helst utan att göra ett riktigt köp:
 Giltiga sorter: `valkommen`, `provperiod`, `order`, `betalningsfel`,
 `uppsagd`, `aterbetalning`.
 
+### Triggrar i databasen
+
+Två saker sker i databasen utan att servern är inblandad: konton skapas av
+Supabase Auth, och återbetalningar begärs av kunden själv i appen. Servern
+får veta via `pg_net`.
+
+Kör i SQL Editor, med samma hemlighet som `SUPABASE_HOOK_SECRET` på servern:
+
+    create extension if not exists pg_net;
+
+    create or replace function public.meddela_aterbetalning()
+    returns trigger language plpgsql security definer set search_path = public as $$
+    begin
+      perform net.http_post(
+        url := 'https://kvario-server.fly.dev/hook/aterbetalning',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'x-hook-secret', 'DIN_HOOK_HEMLIGHET'
+        ),
+        body := jsonb_build_object('record', to_jsonb(new)),
+        timeout_milliseconds := 5000
+      );
+      return new;
+    end;
+    $$;
+
+    drop trigger if exists ny_aterbetalning on public.aterbetalningar;
+
+    create trigger ny_aterbetalning
+    after insert on public.aterbetalningar
+    for each row execute function public.meddela_aterbetalning();
+
+Den här är den enda som är brådskande. Ångerrätten ger kunden pengarna
+tillbaka inom 14 dagar från att du fått veta, och en begäran som ligger
+osedd i adminpanelen är en frist som rinner ut.
+
+Anropen loggas i `net._http_response` — läs den om ett brev uteblir.
+
 ### Webhook för nya konton
 
 Supabase → Database → Webhooks → Create:

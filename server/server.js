@@ -20,7 +20,7 @@ import {
   skickaOrderbekraftelse, skickaValkommen, skickaProvperiodSlutar,
   skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
   skickaProvbrev, provaEpost, PROVBREV,
-  skickaAdminNyttKonto, skickaAdminNyPrenumeration,
+  skickaAdminNyttKonto, skickaAdminNyPrenumeration, skickaAdminAterbetalning,
 } from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db, dbSaknar } from "./db.js";
 
@@ -492,6 +492,7 @@ app.post("/hook/nytt-konto", express.json(), async (req, res) => {
 
   const r = await skickaValkommen(epost);
 
+
   /* Ditt eget besked. Skickas efter kundens, och får inte fälla
      anropet — uteblir det spelar det ingen roll för användaren som
      just registrerat sig. */
@@ -506,6 +507,41 @@ app.post("/hook/nytt-konto", express.json(), async (req, res) => {
     console.error("Kunde inte skicka adminbesked:", err?.message || err);
   }
 
+  res.json({ skickad: r.skickad });
+});
+
+/* ---------- Begäran om återbetalning ----------
+   Begäran skapas av kunden själv i appen och hamnar direkt i
+   databasen. Servern får därför veta via samma sorts trigger som
+   nya konton — se README.
+
+   Det här är det enda adminbrevet som är brådskande: ångerrätten
+   ger fjorton dagar från att du fått veta, och en begäran som
+   ligger osedd i panelen är en frist som rinner ut. */
+app.post("/hook/aterbetalning", express.json(), async (req, res) => {
+  const hemlighet = process.env.SUPABASE_HOOK_SECRET;
+  if (!hemlighet || req.headers["x-hook-secret"] !== hemlighet) {
+    return res.status(401).json({ error: "Obehörig" });
+  }
+
+  const rad = req.body?.record;
+  if (!rad) return res.status(400).json({ error: "Ingen rad i anropet" });
+
+  // Adressen bor i auth.users, inte i begäran.
+  let epost = "okänd";
+  try {
+    if (db && rad.user_id) {
+      const { data } = await db.auth.admin.getUserById(rad.user_id);
+      epost = data?.user?.email || epost;
+    }
+  } catch { /* adressen är trevlig att ha, inte nödvändig */ }
+
+  const r = await skickaAdminAterbetalning({
+    epost,
+    belopp: rad.belopp_ore,
+    orsak: rad.orsak,
+    automatisk: rad.automatisk === true,
+  });
   res.json({ skickad: r.skickad });
 });
 

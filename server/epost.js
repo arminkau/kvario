@@ -212,6 +212,11 @@ export const skickaAdminNyPrenumeration = (data) => {
   return till ? skicka(till, BREV.adminNyPrenumeration(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
 };
 
+export const skickaAdminAterbetalning = (data) => {
+  const till = adminAdress();
+  return till ? skicka(till, BREV.adminAterbetalningBegard(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
+};
+
 /* Provar anslutningen utan att skicka något. Anropas av /halsa på
    servern, så att ett felstavat lösenord upptäcks direkt i stället
    för vid första betalningen. */
@@ -295,6 +300,10 @@ export const PROVBREV = {
   adminkop: () => BREV.adminNyPrenumeration({
     epost: "ny.kund@example.com", namn: "Ny Kund",
     ordernummer: "K-PROV-0000", belopp: 9900, interval: "month",
+  }),
+  adminaterbetalning: () => BREV.adminAterbetalningBegard({
+    epost: "kund@example.com", belopp: 9900,
+    orsak: "Hittade inte det jag trodde", automatisk: true,
   }),
 };
 
