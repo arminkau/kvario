@@ -45,6 +45,16 @@ function hamtaTransport() {
     port,
     secure: port === 465,   // 465 = TLS direkt, 587 = STARTTLS
     auth: { user: anvandare, pass: losenord },
+
+    /* Tvinga IPv4. Strato svarar med både A och AAAA, och Node väljer
+       IPv6 först. Railways containrar har ingen väg ut över IPv6, så
+       anslutningen dog med ENETUNREACH mot en 2a01:238-adress — ett
+       fel som ser ut som ett tappat lösenord men inte är det.
+
+       Går det att sätta en miljövariabel om någon kör där IPv6 finns
+       och föredras. */
+    family: Number(process.env.SMTP_IP_VERSION || 4),
+
     pool: true,
     maxConnections: 2,
     // Ett brev som hänger får inte hålla webhooken öppen; Stripe
