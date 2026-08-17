@@ -1,0 +1,23 @@
+E-POSTMALLAR TILL SUPABASE
+
+Genererade av verktyg/gor-epostmallar.mjs. Ändra inte filerna direkt —
+kör om skriptet, annars glider de isär från de andra breven.
+
+Klistras in under Authentication -> Emails -> Templates.
+Ämnesraden sätts i fältet ovanför HTML-rutan.
+
+1-bekrafta-konto.html  —  ämne: Bekräfta din e-postadress
+2-aterstall-losenord.html  —  ämne: Återställ ditt lösenord
+3-ny-epostadress.html  —  ämne: Bekräfta din nya e-postadress
+4-godkann-adressbyte.html  —  ämne: Din e-postadress håller på att bytas
+5-losenord-andrat.html  —  ämne: Ditt lösenord har ändrats
+
+VARIABLERNA MÅSTE STÅ KVAR ORÖRDA:
+  {{ .ConfirmationURL }}   länken Supabase skapar
+  {{ .NewEmail }}          den nya adressen vid adressbyte
+
+Skrivs de fel skickas brevet utan fungerande länk, och mottagaren
+kommer inte vidare.
+
+Mall 4 och 5 syns bara om Secure email change respektive
+lösenordsnotiser är påslagna under Authentication.
