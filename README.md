@@ -111,6 +111,52 @@ Kontrollera med `GET /halsa` på servern. Den provar anslutningen utan att
 skicka något, så ett felstavat lösenord syns direkt i stället för vid första
 betalningen.
 
+### Vilka brev som skickas
+
+| Brev | Utlöses av |
+|---|---|
+| Välkommen | `POST /hook/nytt-konto` — Supabase-webhook på `auth.users` |
+| Provperioden tar slut | `POST /jobb/provperiod` — schemalagt, 3 dagar innan |
+| Orderbekräftelse | Stripe `invoice.paid` |
+| Betalningen misslyckades | Stripe `invoice.payment_failed` |
+| Prenumerationen uppsagd | Stripe `customer.subscription.deleted` |
+| Återbetalning | Stripe `charge.refunded` |
+
+Innehållet ligger i `server/brev.js`, ramen i `server/brevmall.js` och
+transporten i `server/epost.js`.
+
+Prova vilket som helst utan att göra ett riktigt köp:
+
+    curl -X POST https://din-server/admin/provbrev \
+      -H "Content-Type: application/json" \
+      -H "x-admin-token: DITT_TOKEN" \
+      -d '{"epost":"din@adress.se","sort":"uppsagd"}'
+
+Giltiga sorter: `valkommen`, `provperiod`, `order`, `betalningsfel`,
+`uppsagd`, `aterbetalning`.
+
+### Webhook för nya konton
+
+Supabase → Database → Webhooks → Create:
+
+* Tabell `auth.users`, händelse `INSERT`
+* Typ HTTP Request, metod POST
+* URL: `https://din-server/hook/nytt-konto`
+* Header: `x-hook-secret` med samma värde som `SUPABASE_HOOK_SECRET` på servern
+
+Hemligheten krävs. Utan den kunde vem som helst utlösa välkomstbrev genom
+att gissa adresser.
+
+### Schemalagd påminnelse
+
+`POST /jobb/provperiod` behöver anropas en gång om dygnet med
+`x-admin-token`. Railway har cron under Settings, annars duger vilken
+kronotjänst som helst.
+
+Jobbet är idempotent — kolumnen `paminnelse_skickad` i `subscriptions` gör
+att ett dubbelt anrop inte ger två brev. Kör migrationen i `schema.sql`
+innan första körningen.
+
 ### Leveransbarhet — tre DNS-poster
 
 Utan dessa hamnar orderbekräftelserna i skräpposten. Alla tre sätts hos Strato,

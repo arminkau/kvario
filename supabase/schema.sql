@@ -39,6 +39,13 @@ create table if not exists public.subscriptions (
   updated_at         timestamptz not null default now()
 );
 
+-- Sätts när påminnelsen om att provperioden tar slut har gått ut.
+-- Kolumnen finns för att jobbet ska kunna köras om utan att skicka
+-- samma brev två gånger — ett schemalagt anrop kan dubbleras, och
+-- två likadana brev samma dag ser ut som ett fel hos oss.
+alter table public.subscriptions
+  add column if not exists paminnelse_skickad timestamptz;
+
 alter table public.subscriptions enable row level security;
 
 -- Bara läsning. Inga insert- eller update-policyer för användaren.

@@ -163,7 +163,14 @@ const delaToken = typeof window !== "undefined" ? new URLSearchParams(window.loc
 
 export default function KvarioApp() {
   const [view, setView] = useState("landing");
-  const [flik, setFlik] = useState("oversikt");
+  /* ?flik=konto öppnar en bestämd flik. Breven länkar dit — "Byt
+     betalkort" ska landa på Konto, inte på Översikt där man får leta.
+     Okänt värde ignoreras så att en gammal länk aldrig ger en tom vy. */
+  const [flik, setFlik] = useState(() => {
+    if (typeof window === "undefined") return "oversikt";
+    const onskad = new URLSearchParams(window.location.search).get("flik");
+    return FLIKAR.some(([id]) => id === onskad) ? onskad : "oversikt";
+  });
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);

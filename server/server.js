@@ -16,7 +16,11 @@
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
-import { skickaOrderbekraftelse, provaSmtp } from "./epost.js";
+import {
+  skickaOrderbekraftelse, skickaValkommen, skickaProvperiodSlutar,
+  skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
+  skickaProvbrev, provaSmtp, PROVBREV,
+} from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db } from "./db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -176,6 +180,20 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     case "customer.subscription.deleted": {
       if (!userId) break;
       await sattPlan(userId, "free");
+
+      /* Uppsägningsbrevet är det enda tillfället att fråga varför.
+         Den som just slutat betala svarar oftare än man tror, och
+         svaret är värt mer än brevet kostar att skicka. */
+      try {
+        const kund = sub.customer ? await stripe.customers.retrieve(sub.customer) : null;
+        if (kund?.email) {
+          await skickaUppsagd(kund.email, {
+            slutar: new Date((sub.current_period_end || sub.canceled_at || Date.now() / 1000) * 1000),
+          });
+        }
+      } catch (err) {
+        console.error("Kunde inte skicka uppsägningsbrev:", err?.message || err);
+      }
       break;
     }
     /* Namnet kommer via ett eget fält i Checkout (se /checkout), inte
@@ -263,8 +281,24 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     case "charge.refunded": {
       try {
         const charge = event.data.object;
-        if (charge.invoice) {
-          await markeraAterbetald(charge.invoice, charge.amount_refunded, "Återbetald via Stripe");
+        const order = charge.invoice
+          ? await markeraAterbetald(charge.invoice, charge.amount_refunded, "Återbetald via Stripe")
+          : null;
+
+        /* Kvitto på återbetalningen. Köparen behöver det som underlag
+           i sin egen bokföring — momsen måste specificeras även när
+           pengarna går åt andra hållet.
+
+           Adressen tas från ordern, inte från Stripe-betalningen.
+           billing_details fylls bara i när kortet krävde adress, och
+           saknas ofta helt. */
+        const till = order?.epost || charge.billing_details?.email || charge.receipt_email;
+        if (till) {
+          await skickaAterbetalning(till, {
+            ordernummer: order?.ordernummer || "—",
+            belopp: charge.amount_refunded,
+            helt: charge.amount_refunded >= charge.amount,
+          });
         }
       } catch (err) {
         console.error("Kunde inte logga återbetalning:", err);
@@ -272,10 +306,24 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       break;
     }
 
+    /* Stänger inte av direkt — Stripe gör flera återförsök innan
+       prenumerationen faktiskt avslutas. Brevet är brådskande för
+       kunden men inte för oss: kortet måste bytas av dem. */
     case "invoice.payment_failed": {
-      // Skicka ett vänligt mejl. Stänger inte av direkt — Stripe gör
-      // flera återförsök innan prenumerationen faktiskt avslutas.
-      console.log("Betalning misslyckades för", userId);
+      const faktura = event.data.object;
+      console.log("Betalning misslyckades för", userId || faktura.customer);
+      try {
+        const till = faktura.customer_email;
+        if (till) {
+          await skickaBetalningMisslyckades(till, {
+            belopp: faktura.amount_due,
+            nastaForsok: faktura.next_payment_attempt ? new Date(faktura.next_payment_attempt * 1000) : null,
+            portalUrl: null,
+          });
+        }
+      } catch (err) {
+        console.error("Kunde inte skicka betalningsbrev:", err?.message || err);
+      }
       break;
     }
   }
@@ -315,11 +363,82 @@ app.post("/portal", express.json(), async (req, res) => {
    utvecklare, men bygg riktig inloggning innan någon annan
    ska kunna göra återbetalningar. */
 
+/* ---------- Nytt konto ----------
+   Kontot skapas i Supabase, inte här, så vi får veta det via en
+   databas-webhook på auth.users. Den skickar en hemlighet i huvudet
+   som måste stämma — annars kunde vem som helst utlösa brev genom
+   att gissa adresser.
+
+   Se README för hur webhooken sätts upp. */
+app.post("/hook/nytt-konto", express.json(), async (req, res) => {
+  const hemlighet = process.env.SUPABASE_HOOK_SECRET;
+  if (!hemlighet || req.headers["x-hook-secret"] !== hemlighet) {
+    return res.status(401).json({ error: "Obehörig" });
+  }
+
+  // Supabase skickar { type, table, record, old_record }
+  const epost = req.body?.record?.email;
+  if (!epost) return res.status(400).json({ error: "Ingen e-postadress i anropet" });
+
+  const r = await skickaValkommen(epost);
+  res.json({ skickad: r.skickad });
+});
+
+/* ---------- Påminnelse om provperioden ----------
+   Körs av ett schemalagt anrop, inte av en händelse — det finns
+   ingen webhook för "tre dagar kvar". Railway har cron, eller så
+   räcker en gratis kronotjänst som pingar adressen dagligen.
+
+   Idempotent: kollar paminnelse_skickad i subscriptions så att ett
+   dubbelt anrop inte ger två brev. */
+app.post("/jobb/provperiod", express.json(), async (req, res) => {
+  if (!(await kravAdmin(req, res))) return;
+
+  const DAGAR_INNAN = 3;
+  const nu = new Date();
+  const granslage = new Date(nu.getTime() + DAGAR_INNAN * 86400000);
+
+  const { data: rader, error } = await db
+    .from("subscriptions")
+    .select("user_id, trial_start, plan, paminnelse_skickad")
+    .eq("plan", "free")
+    .is("paminnelse_skickad", null);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  let skickade = 0;
+  for (const r of rader || []) {
+    if (!r.trial_start) continue;
+    const slutar = new Date(new Date(r.trial_start).getTime() + 14 * 86400000);
+    if (slutar > granslage || slutar < nu) continue;   // inte inom fönstret
+
+    /* Adressen bor i auth.users, inte i subscriptions. Den hämtas
+       per rad i stället för att dubbellagras — en kopia hade behövt
+       hållas i takt med adressbyten, och det är just den sortens
+       synkning som tyst går sönder. Volymen är en handfull om dagen. */
+    const { data: anv } = await db.auth.admin.getUserById(r.user_id);
+    const epost = anv?.user?.email;
+    if (!epost) continue;
+
+    const svar = await skickaProvperiodSlutar(epost, {
+      dagarKvar: Math.ceil((slutar - nu) / 86400000),
+      slutar,
+    });
+    if (svar.skickad) {
+      await db.from("subscriptions")
+        .update({ paminnelse_skickad: new Date().toISOString() })
+        .eq("user_id", r.user_id);
+      skickade++;
+    }
+  }
+  res.json({ granskade: rader?.length || 0, skickade });
+});
+
 /* ---------- Provbrev ----------
-   Skickar orderbekräftelsen med påhittade uppgifter till en adress du
-   anger. Utan den går e-posten bara att prova genom att faktiskt köpa
-   något — och då upptäcks ett fel först när en riktig kund väntar på
-   sitt kvitto.
+   Skickar vilket som helst av breven med påhittade uppgifter till en
+   adress du anger. Utan den går e-posten bara att prova genom att
+   faktiskt köpa något, säga upp något och misslyckas med en betalning
+   — och då upptäcks ett fel först när en riktig kund väntar.
 
    Bakom adminspärren med flit: annars hade vem som helst kunnat
    skicka brev i ditt namn från din server. */
@@ -327,28 +446,17 @@ app.post("/admin/provbrev", express.json(), async (req, res) => {
   if (!(await kravAdmin(req, res))) return;
 
   const till = req.body?.epost;
+  const sort = req.body?.sort || "order";
   if (!till || !/^\S+@\S+\.\S+$/.test(till)) {
     return res.status(400).json({ error: "Ange en giltig e-postadress" });
   }
+  if (!PROVBREV[sort]) {
+    return res.status(400).json({ error: `Okänd brevsort. Välj en av: ${Object.keys(PROVBREV).join(", ")}` });
+  }
 
-  const nu = new Date();
-  const om = new Date(nu);
-  om.setMonth(om.getMonth() + 1);
-
-  const r = await skickaOrderbekraftelse({
-    ordernummer: "K-PROV-0000",
-    epost: till,
-    namn: "Provbrev",
-    belopp: 9900,
-    interval: "month",
-    betaldatum: nu,
-    periodSlut: om,
-    angerrattSamtycke: true,
-    fakturaUrl: null,
-  });
-
+  const r = await skickaProvbrev(till, sort);
   if (!r.skickad) return res.status(502).json({ error: r.orsak || "Kunde inte skicka" });
-  res.json({ skickad: true, till });
+  res.json({ skickad: true, till, sort });
 });
 
 app.post("/admin/aterbetala", express.json(), async (req, res) => {
