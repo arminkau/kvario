@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    E-postmallar till Supabase
 
    Supabase skickar bekräftelser och lösenordslänkar med sina egna
@@ -72,7 +72,22 @@ const lugnruta = (text) =>
         <p style="margin:0;font-size:12.5px;line-height:1.65;color:${F.dampad}">${text}</p>
       </div>`;
 
-function mall({ rubrik, ingress, knapptext, kropp = "", avslut }) {
+/* Länken byggs mot kvario.se i stället för {{ .ConfirmationURL }}.
+
+   Supabases färdiga länk går till projektets egen adress, som är en
+   slumpsträng: sjdcxtalwnbtuaxgywbr.supabase.co. Mitt i ett
+   bekräftelsemejl ser den ut som nätfiske — och det är precis den
+   tvekan man inte har råd med vid registreringen, där man har som
+   minst förtroende att spela med.
+
+   {{ .TokenHash }} är samma engångstoken, bara utan Supabases
+   inpackning. Appen växlar in den, se loginViaToken i src/auth.js.
+
+   typ måste stämma med vad Supabase väntar sig: signup, recovery,
+   invite, magiclink eller email_change. */
+const lank = (typ) => `https://kvario.se/?token_hash={{ .TokenHash }}&type=${typ}`;
+
+function mall({ rubrik, ingress, knapptext, kropp = "", avslut, typ = "signup" }) {
   return `<!doctype html>
 <html lang="sv">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -86,10 +101,10 @@ function mall({ rubrik, ingress, knapptext, kropp = "", avslut }) {
   </td></tr>
 
   <tr><td style="padding:0 32px">
-    ${knapp(knapptext, "{{ .ConfirmationURL }}")}
+    ${knapp(knapptext, lank(typ))}
     <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:${F.mist}">
       Fungerar inte knappen, kopiera den här adressen till webbläsaren:<br>
-      <span style="color:${F.dampad};word-break:break-all">{{ .ConfirmationURL }}</span>
+      <span style="color:${F.dampad};word-break:break-all">${lank(typ)}</span>
     </p>
     ${kropp}
     ${avslut}
@@ -121,7 +136,7 @@ const MALLAR = {
     html: mall({
       rubrik: "Bekräfta din e-postadress",
       ingress: "Tack för att du skapat ett konto. Klicka nedan så aktiveras det, och dina 14 dagar med Kvario Pro börjar direkt — inget kort behövs.",
-      knapptext: "Bekräfta e-postadressen",
+      knapptext: "Bekräfta e-postadressen", typ: "signup",
       avslut: lugnruta("Har du inte skapat något konto kan du bortse från det här brevet. Ingenting händer förrän länken klickats."),
     }),
   },
@@ -131,7 +146,7 @@ const MALLAR = {
     html: mall({
       rubrik: "Välj ett nytt lösenord",
       ingress: "Vi fick en begäran om att återställa lösenordet till ditt Kvario-konto. Länken gäller i en timme.",
-      knapptext: "Välj nytt lösenord",
+      knapptext: "Välj nytt lösenord", typ: "recovery",
       avslut: lugnruta("Har du inte begärt detta kan du bortse från brevet. Ditt nuvarande lösenord fortsätter att gälla."),
     }),
   },
@@ -141,7 +156,7 @@ const MALLAR = {
     html: mall({
       rubrik: "Bekräfta din nya e-postadress",
       ingress: "Klicka nedan för att bekräfta <b>{{ .NewEmail }}</b> som din nya adress i Kvario.",
-      knapptext: "Bekräfta den nya adressen",
+      knapptext: "Bekräfta den nya adressen", typ: "email_change",
       avslut: lugnruta("Adressen ändras inte förrän länken klickats. Har du inte begärt bytet kan du bortse från brevet."),
     }),
   },
@@ -151,7 +166,7 @@ const MALLAR = {
     html: mall({
       rubrik: "Din e-postadress håller på att bytas",
       ingress: "Vi har fått en begäran om att byta adressen på ditt Kvario-konto till <b>{{ .NewEmail }}</b>.",
-      knapptext: "Godkänn bytet",
+      knapptext: "Godkänn bytet", typ: "email_change",
       avslut: varningsruta(
         "<b>Var det inte du?</b> Klicka inte på länken. Byt lösenord direkt och hör av dig till " +
         '<a href="mailto:info@kvario.se" style="color:#8C6418">info@kvario.se</a> — ett adressbyte du inte begärt kan betyda att någon annan kommit åt kontot.'
@@ -207,7 +222,7 @@ const MALLAR = {
     html: mall({
       rubrik: "Du är inbjuden till Kvario",
       ingress: "Någon har bjudit in dig att använda Kvario — verktyget som visar vad som blir kvar av det du fakturerar när moms, skatt och egenavgifter är betalda.",
-      knapptext: "Skapa ditt konto",
+      knapptext: "Skapa ditt konto", typ: "invite",
       avslut: lugnruta("Känner du inte igen inbjudan kan du bortse från brevet. Inget konto skapas förrän du klickat."),
     }),
   },
@@ -220,7 +235,7 @@ const MALLAR = {
     html: mall({
       rubrik: "Logga in på Kvario",
       ingress: "Klicka nedan så loggas du in. Länken gäller en gång och i en timme.",
-      knapptext: "Logga in",
+      knapptext: "Logga in", typ: "magiclink",
       avslut: lugnruta("Har du inte begärt länken kan du bortse från brevet. Ingen kommer in på ditt konto utan att klicka på den."),
     }),
   },

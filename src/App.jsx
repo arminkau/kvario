@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen, loginViaToken } from "./auth";
 import Login from "./Login.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
@@ -307,6 +307,38 @@ export default function KvarioApp() {
       );
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
+
+    /* Länkarna i breven pekar hit i stället för på Supabase, och bär
+       bara ett engångstoken. Det växlas in mot en session här.
+
+       Adressen städas direkt efteråt. Ett token som ligger kvar i
+       adressfältet följer med i skärmdumpar, historik och
+       referer-huvuden — och duger för att komma in på kontot. */
+    const fraga = new URLSearchParams(window.location.search);
+    const token_hash = fraga.get("token_hash");
+    const type = fraga.get("type");
+
+    if (token_hash && type) {
+      window.history.replaceState(null, "", window.location.pathname);
+      loginViaToken({ token_hash, type })
+        .then(({ session: s }) => {
+          if (s) setSession(s);
+          // Återställning ger en session som bara duger till att
+          // sätta nytt lösenord — visa den vyn direkt.
+          if (type === "recovery") setPasswordRecovery(true);
+        })
+        .catch((e) => {
+          const m = String(e?.message || "");
+          setAuthLinkError(
+            /expired|Token has expired/i.test(m) ? "Länken har gått ut."
+            : /invalid|not found/i.test(m) ? "Länken har redan använts eller är ogiltig."
+            : m || "Länken kunde inte användas."
+          );
+        })
+        .finally(() => setAuthReady(true));
+      return;
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthReady(true);

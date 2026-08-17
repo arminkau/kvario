@@ -23,11 +23,11 @@
 
   <tr><td style="padding:0 32px">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#131E26;border-radius:3px">
-        <a href="{{ .ConfirmationURL }}" style="display:inline-block;color:#FAFCFB;text-decoration:none;font-size:14px;font-weight:600;padding:13px 26px">Godkänn bytet</a>
+        <a href="https://kvario.se/?token_hash={{ .TokenHash }}&type=email_change" style="display:inline-block;color:#FAFCFB;text-decoration:none;font-size:14px;font-weight:600;padding:13px 26px">Godkänn bytet</a>
       </td></tr></table>
     <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#8698A1">
       Fungerar inte knappen, kopiera den här adressen till webbläsaren:<br>
-      <span style="color:#4A5D68;word-break:break-all">{{ .ConfirmationURL }}</span>
+      <span style="color:#4A5D68;word-break:break-all">https://kvario.se/?token_hash={{ .TokenHash }}&type=email_change</span>
     </p>
     
     <div style="background:#E4EBE7;border-left:3px solid #9A4A25;border-radius:0 4px 4px 0;padding:15px 17px;margin-top:26px">

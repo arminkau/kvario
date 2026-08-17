@@ -96,6 +96,24 @@ export function bevakaSession() {
   };
 }
 
+/* ---------- Länkar som pekar hit i stället för på Supabase ----------
+   Supabases färdiga länk går till projektets egen adress, som är en
+   slumpsträng: sjdcxtalwnbtuaxgywbr.supabase.co. Mitt i ett
+   bekräftelsemejl ser den ut som nätfiske, och det är precis den
+   sortens tvekan man inte vill ha vid registreringen.
+
+   I stället skickar mallarna bara engångstoken, och länken byggs mot
+   kvario.se. Den här funktionen växlar in den mot en session.
+
+   Typen avgör vad som händer efteråt: signup och invite loggar in,
+   recovery ger en session som bara duger till att sätta nytt
+   lösenord, email_change bekräftar bytet. */
+export async function loginViaToken({ token_hash, type }) {
+  const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
+  if (error) throw error;
+  return data;
+}
+
 /* ---------- Lösenord ----------
    Appens huvudsakliga inloggning. Den magiska länken är borttagen:
    den var lätt att missförstå, eftersom en redan använd länk gav
