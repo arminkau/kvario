@@ -227,38 +227,62 @@ const MALLAR = {
 };
 
 /* ---------- Svarsmall och signatur ----------
-   Inte till Supabase, utan till dig. Den som svarar en kund från
-   webbmailen skickar annars ett brev som ser ut som vilket som
-   helst — och kunden känner inte igen avsändaren från kvittot hen
-   fick dagen innan. */
+   Inte till Supabase, utan till dig.
+
+   DE HÄR TÅL EN WYSIWYG-EDITOR, RESTEN GÖR DET INTE.
+
+   Supabase skickar sin HTML orörd, så där håller det ritade märket.
+   Men de här två klistras in i webbmailens skrivfönster, och en
+   sådan tolkar om allt den får: höjder på tabellceller kastas, och
+   mellanslaget i varje band tvingar fram en hel textrads höjd. Märket
+   rasade isär till en pelare — provat och sett.
+
+   Därför bygger de här på ren text. Färg och fetstil överlever varje
+   editor jag känner till; höjdsatta celler gör det inte. Det är
+   ordmärket som bär igenkänningen i ett personligt brev ändå — i ett
+   automatiskt kvitto är det symbolen, i ett svar från en människa är
+   det namnet. */
+const ORDMARKE = `<p style="margin:0;font-size:21px;font-weight:700;letter-spacing:-.02em;color:${F.black}">Kvario<span style="color:${F.massing}">.</span></p>`;
+
 const EXTRA = {
   "svarsmall": {
     amne: "(byt ut ämnesraden)",
-    html: mall({
-      rubrik: "RUBRIK HÄR",
-      ingress: "Första stycket, det som syns i förhandsvisningen i inkorgen. Håll det kort och säg vad brevet gäller.",
-      knapptext: "Öppna Kvario",
-      avslut: `<p style="margin:26px 0 0;font-size:13.5px;line-height:1.7;color:${F.dampad}">
-        Brödtext här. Byt ut och lägg till stycken efter behov.
-      </p>
-      <p style="margin:18px 0 0;font-size:13.5px;line-height:1.7;color:${F.dampad}">
-        Vänliga hälsningar<br><b style="color:${F.black}">Ditt namn</b><br>Kvario
-      </p>`,
-    }).replace("{{ .ConfirmationURL }}", "https://kvario.se")
-      .replace("{{ .ConfirmationURL }}", "https://kvario.se"),
+    html: `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.7;color:${F.dampad};max-width:560px">
+  ${ORDMARKE}
+
+  <p style="margin:22px 0 0;font-size:15px;line-height:1.6;color:${F.black}"><b>Hej NAMN,</b></p>
+
+  <p style="margin:14px 0 0">
+    Första stycket. Säg vad brevet gäller, kort — det är den raden som syns i
+    förhandsvisningen i inkorgen.
+  </p>
+
+  <p style="margin:14px 0 0">
+    Brödtext. Lägg till fler stycken genom att kopiera den här raden.
+  </p>
+
+  <p style="margin:14px 0 0">
+    Vänliga hälsningar<br>
+    <b style="color:${F.black}">Ditt namn</b>
+  </p>
+
+  <p style="margin:24px 0 0;padding-top:14px;border-top:1px solid ${F.linje};font-size:12px;line-height:1.7;color:${F.mist}">
+    <b style="color:${F.black}">Kvario</b> — se vad av pengarna som faktiskt är dina<br>
+    <a href="https://kvario.se" style="color:${F.mist}">kvario.se</a> ·
+    <a href="mailto:info@kvario.se" style="color:${F.mist}">info@kvario.se</a>
+  </p>
+</div>`,
   },
 };
 
-const SIGNATUR = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  <tr><td style="padding-top:14px;border-top:1px solid ${F.linje}">
-    ${MARKE}
-    <p style="margin:10px 0 0;font-size:12px;line-height:1.7;color:${F.mist}">
-      <b style="color:${F.black}">Ditt namn</b><br>
-      <a href="https://kvario.se" style="color:${F.mist};text-decoration:none">kvario.se</a> ·
-      <a href="mailto:info@kvario.se" style="color:${F.mist};text-decoration:none">info@kvario.se</a>
-    </p>
-  </td></tr>
-</table>`;
+const SIGNATUR = `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:${F.mist};padding-top:14px;border-top:1px solid ${F.linje};max-width:460px">
+  ${ORDMARKE}
+  <p style="margin:8px 0 0">
+    <b style="color:${F.black}">Ditt namn</b><br>
+    <a href="https://kvario.se" style="color:${F.mist}">kvario.se</a> ·
+    <a href="mailto:info@kvario.se" style="color:${F.mist}">info@kvario.se</a>
+  </p>
+</div>`;
 
 mkdirSync(UT, { recursive: true });
 const register = [];
