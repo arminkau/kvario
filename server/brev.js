@@ -323,6 +323,66 @@ export function adminNyPrenumeration({ epost, namn, ordernummer, belopp, interva
   };
 }
 
+/* En uppsägning. Inte brådskande, men det enda tillfället att få
+   veta varför någon slutade — och det är den upplysningen som är
+   värd mest av allt i det här brevet. */
+export function adminUppsagd({ epost, slutar }) {
+  const rubrik = "En prenumeration är uppsagd";
+  return {
+    amne: `Kvario: uppsägning — ${epost}`,
+    html: brev({
+      rubrik,
+      ingress: `<b>${fly(epost)}</b> har sagt upp sin prenumeration. Tillgången gäller till ${datum(slutar)}.`,
+      kropp: `
+        ${rader([
+          ["Kund", fly(epost)],
+          ["Har Pro till", datum(slutar)],
+        ])}
+        <div style="height:22px"></div>
+        ${ruta("Värt att göra",
+          "Kunden har fått ett brev där vi frågar varför. Svarar de, spara svaret — " +
+          "återkommande skäl är det billigaste sättet att veta vad som saknas i tjänsten.")}`,
+    }),
+    text: textbrev({
+      rubrik,
+      stycken: [`${epost} har sagt upp sin prenumeration.`, `Har Pro till ${datum(slutar)}.`],
+    }),
+  };
+}
+
+/* En betalning som inte gick igenom. Brådskande på ett annat sätt än
+   ångerrätten: här är det intäkt som håller på att försvinna, och
+   oftast av ett skäl kunden själv inte märkt. */
+export function adminBetalningsfel({ epost, belopp, nastaForsok }) {
+  const rubrik = "En betalning gick inte igenom";
+  return {
+    amne: `Kvario: betalning nekad — ${epost}`,
+    html: brev({
+      rubrik,
+      ingress: `Kortet för <b>${fly(epost)}</b> nekades på ${kr(belopp)} kr.`,
+      kropp: `
+        ${rader([
+          ["Kund", fly(epost)],
+          ["Belopp", `${kr(belopp)} kr`],
+          ...(nastaForsok ? [["Stripe försöker igen", datum(nastaForsok)]] : []),
+        ])}
+        <div style="height:22px"></div>
+        ${ruta("Du behöver inte göra något",
+          "Kunden har fått ett brev om att byta kort, och Stripe försöker igen automatiskt " +
+          "några gånger. Går det ändå inte avslutas prenumerationen av sig själv. " +
+          "Hör kunden av sig är det oftast ett utgånget kort.")}`,
+    }),
+    text: textbrev({
+      rubrik,
+      stycken: [
+        `Kortet för ${epost} nekades på ${kr(belopp)} kr.`,
+        nastaForsok ? `Stripe försöker igen ${datum(nastaForsok)}.` : "",
+        "Kunden har fått besked. Du behöver inte göra något.",
+      ].filter(Boolean),
+    }),
+  };
+}
+
 /* Begäran om återbetalning. Den enda av adminbreven som är
    brådskande: ångerrätten ger kunden pengarna tillbaka inom 14
    dagar från att du fått veta, och en begäran som ligger osedd i

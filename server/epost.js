@@ -217,6 +217,16 @@ export const skickaAdminAterbetalning = (data) => {
   return till ? skicka(till, BREV.adminAterbetalningBegard(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
 };
 
+export const skickaAdminUppsagd = (data) => {
+  const till = adminAdress();
+  return till ? skicka(till, BREV.adminUppsagd(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
+};
+
+export const skickaAdminBetalningsfel = (data) => {
+  const till = adminAdress();
+  return till ? skicka(till, BREV.adminBetalningsfel(data)) : Promise.resolve({ skickad: false, orsak: "ADMIN_EPOST saknas" });
+};
+
 /* Provar anslutningen utan att skicka något. Anropas av /halsa på
    servern, så att ett felstavat lösenord upptäcks direkt i stället
    för vid första betalningen. */
@@ -304,6 +314,12 @@ export const PROVBREV = {
   adminaterbetalning: () => BREV.adminAterbetalningBegard({
     epost: "kund@example.com", belopp: 9900,
     orsak: "Hittade inte det jag trodde", automatisk: true,
+  }),
+  adminuppsagd: () => BREV.adminUppsagd({
+    epost: "kund@example.com", slutar: new Date(Date.now() + 21 * 86400000),
+  }),
+  adminbetalningsfel: () => BREV.adminBetalningsfel({
+    epost: "kund@example.com", belopp: 9900, nastaForsok: new Date(Date.now() + 3 * 86400000),
   }),
 };
 

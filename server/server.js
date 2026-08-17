@@ -21,6 +21,7 @@ import {
   skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
   skickaProvbrev, provaEpost, PROVBREV,
   skickaAdminNyttKonto, skickaAdminNyPrenumeration, skickaAdminAterbetalning,
+  skickaAdminUppsagd, skickaAdminBetalningsfel,
 } from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db, dbSaknar } from "./db.js";
 
@@ -287,9 +288,9 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       try {
         const kund = sub.customer ? await stripe.customers.retrieve(sub.customer) : null;
         if (kund?.email) {
-          await skickaUppsagd(kund.email, {
-            slutar: new Date((sub.current_period_end || sub.canceled_at || Date.now() / 1000) * 1000),
-          });
+          const slutar = new Date((sub.current_period_end || sub.canceled_at || Date.now() / 1000) * 1000);
+          await skickaUppsagd(kund.email, { slutar });
+          await skickaAdminUppsagd({ epost: kund.email, slutar });
         }
       } catch (err) {
         console.error("Kunde inte skicka uppsägningsbrev:", err?.message || err);
@@ -425,11 +426,11 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       try {
         const till = faktura.customer_email;
         if (till) {
+          const nastaForsok = faktura.next_payment_attempt ? new Date(faktura.next_payment_attempt * 1000) : null;
           await skickaBetalningMisslyckades(till, {
-            belopp: faktura.amount_due,
-            nastaForsok: faktura.next_payment_attempt ? new Date(faktura.next_payment_attempt * 1000) : null,
-            portalUrl: null,
+            belopp: faktura.amount_due, nastaForsok, portalUrl: null,
           });
+          await skickaAdminBetalningsfel({ epost: till, belopp: faktura.amount_due, nastaForsok });
         }
       } catch (err) {
         console.error("Kunde inte skicka betalningsbrev:", err?.message || err);
