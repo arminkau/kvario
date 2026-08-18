@@ -599,41 +599,63 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 }
 
 @media (max-width:560px){
-  .kvar{padding:14px 0 40px}
+  /* ---------- Ett mått för alla sidor ----------
 
-  /* Luften mot skärmkanten. Först 14 px, sedan 20 — fortfarande för
-     trångt i appen, där det inte finns något webbläsarfönster runt
-     omkring som ger ögat en ram. Nu 26, och panelernas egen padding
-     hålls nere så att texten inte blir smalare än den var.
+     Marginalen mot skärmkanten har lagats tre gånger, en behållare i
+     taget: först .wrap, sedan .lp, sedan .adminVy — och de hamnade på
+     olika värden, 26 mot 22. Nu står måttet på ett ställe och alla
+     använder det, så nästa justering blir en rad i stället för tre.
 
      Räknat på en 375 px skärm: kortet blir 323 px brett och texten
-     börjar 42 px från kanten.
+     börjar 42 px från kanten. */
+  :root{--sidkant:26px}
 
-     env() håller innehållet innanför rundade hörn och kameraurtag när
-     telefonen ligger på sidan. max() gör att vanliga skärmar, där
-     env() är noll, ändå får sina 26 px. */
-  .wrap{
-    padding-left:max(26px, env(safe-area-inset-left));
-    padding-right:max(26px, env(safe-area-inset-right));
+  /* Luften uppåt.
+
+     safe-area-inset-top saknades helt, medan vänster, höger och botten
+     hade den. Med viewport-fit=cover i index.html sträcker sig sidan
+     under statusfältet, så på en telefon med kameraurtag hamnade det
+     översta innehållet delvis under det. Det var alltså inte bara
+     trångt, utan dolt.
+
+     max() med calc: på en skärm utan urtag är env() noll och 22 px
+     gäller. Har den ett urtag läggs 14 px under det i stället, så
+     rubriken börjar strax under och inte precis i kanten på det. */
+  .kvar{padding:max(22px, calc(env(safe-area-inset-top) + 14px)) 0 40px}
+
+  /* Alla tre toppnivåbehållarna får samma sidmarginal: appen, landnings-
+     sidan och adminvyn. env() håller innehållet innanför rundade hörn
+     och kameraurtag när telefonen ligger på sidan. */
+  .wrap, .lp, .adminVy{
+    padding-left:max(var(--sidkant), env(safe-area-inset-left));
+    padding-right:max(var(--sidkant), env(safe-area-inset-right));
   }
+
+  /* Inloggningen och onboardingen centrerar sig själva i höjd och låg
+     utanför regeln ovan. Utan safe-area gled kortet upp under urtaget
+     på korta skärmar där innehållet inte får plats att centreras. */
+  .onboard{
+    padding:max(24px, calc(env(safe-area-inset-top) + 14px))
+            max(var(--sidkant), env(safe-area-inset-right))
+            max(24px, env(safe-area-inset-bottom))
+            max(var(--sidkant), env(safe-area-inset-left));
+  }
+
   .panel{padding:18px 16px}
   .hero{padding:24px 17px 20px}
   .alert{padding:14px 14px}
-
-  /* Landningssidan och adminvyn ligger båda utanför .wrap och fick
-     därför ingen marginal alls — innehållet låg an mot skärmkanten på
-     0 px. Landningssidan är det första en ny besökare ser, adminvyn
-     den enda du själv använder. Samma mått som appens kort. */
-  .lp, .adminVy{
-    padding-left:max(22px, env(safe-area-inset-left));
-    padding-right:max(22px, env(safe-area-inset-right));
-  }
   .lpPanel{padding:22px 18px}
   .lpHero{padding:18px 0 34px}
   .adminPanel{padding:20px 17px}
   /* Flikraden går ända ut med flit — den ska kunna dras i från
-     skärmkanten. Innehållet i den hålls i linje med korten. */
-  .flikar{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px}
+     skärmkanten. Innehållet i den hålls i linje med korten, så den
+     följer samma mått som allt annat. */
+  .flikar{
+    margin-left:calc(var(--sidkant) * -1);
+    margin-right:calc(var(--sidkant) * -1);
+    padding-left:var(--sidkant);
+    padding-right:var(--sidkant);
+  }
 
   input,select,textarea{font-size:16px}
 

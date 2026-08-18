@@ -44,8 +44,7 @@ function beloppsrader(m, forsta) {
 }
 
 const MOMSFRI_TEXT =
-  "Ingen moms är debiterad. Säljaren omfattas av undantaget för " +
-  "omsättning under 120 000 kr per år och är därför inte momsregistrerad.";
+  "Ingen moms är debiterad. Försäljningen är undantagen från skatteplikt.";
 
 /* ---------- 1. Nytt konto ---------- */
 export function valkommen({ epost, provDagar = 14 }) {
