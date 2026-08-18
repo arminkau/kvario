@@ -27,25 +27,37 @@ export const POLICY_VERSION = "2026-01";
    det är obehagligt men det är den uppgift som identifierar den
    ansvarige, och den står redan i Bolagsverkets öppna register. */
 export const ANSVARIG = {
-  namn: "Kvario",
-  orgnr: "[Organisationsnummer]",
-  epost: "info@kvario.se",
+  namn: import.meta.env.VITE_FORETAG_NAMN || "Kvario",
+  /* Ur miljön och inte ur koden. Numret hamnar ändå i det byggda
+     paketet — det ska stå på kvitton och i policyn, det är hela
+     poängen — men det behöver inte ligga i ett publikt repos historik
+     för all framtid. Sätts i Vercel, samma ställe som övriga nycklar.
+
+     För en enskild firma är numret personnumret. Se kommentaren i
+     server/brevmall.js om varför det ändå måste med. */
+  orgnr: import.meta.env.VITE_FORETAG_ORGNR || null,
+  epost: import.meta.env.VITE_FORETAG_EPOST || "info@kvario.se",
 };
 
 export const INTEGRITET = [
   {
     h: "Vem som ansvarar",
-    p: `${ANSVARIG.namn}, organisationsnummer ${ANSVARIG.orgnr}, är personuppgiftsansvarig för
-    behandlingen av dina uppgifter. Kontakta oss på ${ANSVARIG.epost} vid frågor eller om du vill
-    utöva någon av dina rättigheter.`,
+    /* Numret utelämnas om det inte är satt, i stället för att skriva ut
+       "null" eller en platshållare i klartext. En policy med [hakparentes]
+       i låg live på sajten tidigare, och det är sämre än att raden är
+       kortare. */
+    p: `${ANSVARIG.namn}${ANSVARIG.orgnr ? `, organisationsnummer ${ANSVARIG.orgnr}` : ""}, är
+    personuppgiftsansvarig för behandlingen av dina uppgifter. Kontakta oss på ${ANSVARIG.epost}
+    vid frågor eller om du vill utöva någon av dina rättigheter.`,
   },
   {
     h: "Vilka uppgifter vi behandlar",
     p: `Din e-postadress, som används för inloggning. De uppgifter du själv matar in i tjänsten:
     fakturabelopp, kundnamn, kostnader, löneuppgifter och inställningar. Teknisk information som
     behövs för att tjänsten ska fungera, exempelvis inloggningssession och tidpunkt för
-    godkännande av villkoren. Betalar du för Pro behandlar vår betalningsleverantör dessutom
-    betaluppgifter — vi lagrar aldrig ditt kortnummer.`,
+    godkännande av villkoren. Betalar du för Pro anger du ditt namn i kassan, och vi sparar det
+    tillsammans med ordern eftersom bokföringslagen kräver att underlaget bevaras i sju år. Vår
+    betalningsleverantör behandlar dessutom betaluppgifter — vi lagrar aldrig ditt kortnummer.`,
   },
   {
     h: "Varför och med vilken rätt",
