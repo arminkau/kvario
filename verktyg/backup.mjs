@@ -33,6 +33,7 @@ import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
+import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 
 /* Nycklarna läses i första hand ur miljön, i andra hand ur en fil i
    hemkatalogen. Filen finns för schemalagda körningar: ett veckojobb
@@ -146,7 +147,15 @@ async function hamtaKvittofiler(kvitton, mapp) {
 
 /* ---------- Kör ---------- */
 
-const stampel = new Date().toISOString().replace(/[:.]/g, "-");
+/* Lokal tid, inte UTC. Den gamla ISO-stämpeln hette 03-05 för en
+   körning som skedde 05:05, vilket gjorde det omöjligt att para ihop
+   en mapp med "backupen jag tog i går kväll". Datumet står först så
+   att mapparna fortfarande sorteras i tidsordning. */
+const nu = new Date();
+const tv = (n) => String(n).padStart(2, "0");
+const stampel =
+  `${nu.getFullYear()}-${tv(nu.getMonth() + 1)}-${tv(nu.getDate())}` +
+  ` kl ${tv(nu.getHours())}.${tv(nu.getMinutes())}.${tv(nu.getSeconds())}`;
 
 /* Räknat från skriptets egen plats, inte från katalogen man råkar stå
    i. Med process.cwd() hamnade backupen där kommandot kördes — kör man
@@ -155,6 +164,47 @@ const stampel = new Date().toISOString().replace(/[:.]/g, "-");
 const rot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mapp = join(rot, "backup", stampel);
 await mkdir(mapp, { recursive: true });
+
+/* ---------- Kryptering ----------
+
+   Backupmappen ligger under OneDrive, så den synkas till Microsoft.
+   Det är bra — en kopia utanför datorn är hela poängen — men utan
+   kryptering ligger varje kunds fakturor och adresser i klartext hos
+   någon annan.
+
+   Sätts BACKUP_LOSENORD i nyckelfilen krypteras allt utom manifestet.
+   Utan lösenord fungerar skriptet precis som förut, så ingen backup
+   slutar fungera för att den här raden lades till.
+
+   Nyckeln härleds en gång per körning, inte en gång per fil: scrypt
+   är avsiktligt långsamt, och med tusen kvitton hade det blivit
+   minuter av väntan utan att skydda något ytterligare. */
+const LOSEN = process.env.BACKUP_LOSENORD || null;
+let saltet = null, nyckeln = null;
+
+if (LOSEN) {
+  saltet = randomBytes(16);
+  nyckeln = scryptSync(LOSEN, saltet, 32);
+  await writeFile(join(mapp, "krypto.json"), JSON.stringify({
+    algoritm: "aes-256-gcm",
+    nyckelhärledning: "scrypt",
+    salt: saltet.toString("base64"),
+    format: "varje .kryptbin är [iv 12 byte][authTag 16 byte][chiffertext]",
+    las: "node verktyg/aterstall.mjs \"<den här mappen>\"",
+  }, null, 2));
+}
+
+/* Egen IV per fil. Återanvänd IV med samma nyckel bryter GCM helt —
+   två filer krypterade med samma par går att ställa mot varandra. */
+async function skrivFil(mal, data) {
+  const kropp = Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8");
+  if (!nyckeln) return writeFile(mal, kropp);
+
+  const iv = randomBytes(12);
+  const chiffer = createCipheriv("aes-256-gcm", nyckeln, iv);
+  const ut = Buffer.concat([chiffer.update(kropp), chiffer.final()]);
+  return writeFile(`${mal}.kryptbin`, Buffer.concat([iv, chiffer.getAuthTag(), ut]));
+}
 
 const manifest = { tagen: new Date().toISOString(), projekt: bas, tabeller: {}, fel: [] };
 let kvitton = [];

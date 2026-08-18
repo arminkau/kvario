@@ -1,29 +1,24 @@
-name: Dagligt jobb
+name: Provperiodskoll (manuell)
 
-# Anropar /jobb/provperiod en gång om dygnet. Endpointen har alltid
-# behövt det — README säger det rakt ut — men ingenting kallade på den,
-# så påminnelsen om att provperioden tar slut skickades aldrig.
+# Schemat är borttaget med flit. Servern kör numera det här jobbet
+# själv var sjätte timme — se kommentaren längst ned i server/server.js.
 #
-# Det andra jobbet gör: anropet läser subscriptions ur Supabase. Free-
-# planen pausar projekt efter sju dygn utan aktivitet, och en daglig
-# fråga räcker för att det aldrig ska hända. Ett jobb som behövde
-# finnas ändå, som råkar lösa pausproblemet gratis.
+# Skälet: i ett publikt repo stänger GitHub av schemalagda workflows
+# efter 60 dagar utan aktivitet i repot. Ett schema här hade alltså
+# tystnat efter två lugna månader, och gjort det utan att synas.
+# workflow_dispatch omfattas inte av den regeln.
+#
+# Kvar som knapp för att kunna köra jobbet på begäran utan att leta
+# fram token och skriva curl för hand.
 
 on:
-  schedule:
-    # 07:00 UTC. Breven landar då på morgonen svensk tid året om, och
-    # tidigt på dygnet ger marginal om GitHub kör försent — schemalagda
-    # körningar är inte på minuten.
-    - cron: "0 7 * * *"
-  # Så att jobbet går att prova direkt från fliken Actions utan att
-  # vänta ett dygn på nästa körning.
   workflow_dispatch:
 
 jobs:
   provperiod:
     runs-on: ubuntu-latest
     steps:
-      - name: Påminn om provperioder som snart tar slut
+      - name: Kör provperiodskollen nu
         run: |
           kod=$(curl -sS --max-time 60 -o svar.json -w "%{http_code}" \
             -X POST https://kvario-server.fly.dev/jobb/provperiod \
@@ -32,10 +27,6 @@ jobs:
             -d '{}')
           echo "Svar $kod:"
           cat svar.json; echo
-          # Ett tyst misslyckande vore värre än inget jobb alls: då tror
-          # man att breven går ut och att databasen hålls vaken, och får
-          # veta motsatsen den dag en kund undrar varför hen aldrig hörde
-          # av sig innan provperioden tog slut.
           if [ "$kod" != "200" ]; then
             echo "::error::Jobbet svarade $kod i stället för 200"
             exit 1

@@ -547,16 +547,19 @@ app.post("/hook/aterbetalning", express.json(), async (req, res) => {
 });
 
 /* ---------- Påminnelse om provperioden ----------
-   Körs av ett schemalagt anrop, inte av en händelse — det finns
-   ingen webhook för "tre dagar kvar". Railway har cron, eller så
-   räcker en gratis kronotjänst som pingar adressen dagligen.
+   Det finns ingen webhook för "tre dagar kvar", så någon måste fråga
+   med jämna mellanrum. Den frågan ställer servern numera själv, längst
+   ned i filen — se kommentaren där om varför inte GitHub.
+
+   Bruten ur endpointen så att timern och HTTP-anropet kör exakt samma
+   kod. Två kopior av villkoret för när ett brev ska gå ut hade glidit
+   isär, och den sortens glidning märks först när fel kund får fel brev.
 
    Idempotent: kollar paminnelse_skickad i subscriptions så att ett
-   dubbelt anrop inte ger två brev. */
-app.post("/jobb/provperiod", express.json(), async (req, res) => {
-  if (!(await kravAdmin(req, res))) return;
-  // Utan den här kraschade anropet på db.from() av en null-referens.
-  if (!db) return res.status(503).json({ error: `Databasen saknas: ${dbSaknar.join(", ")}` });
+   dubbelt anrop inte ger två brev. Det är också vad som gör det
+   ofarligt att köra den ofta. */
+async function kollaProvperioder() {
+  if (!db) throw new Error(`Databasen saknas: ${dbSaknar.join(", ")}`);
 
   const DAGAR_INNAN = 3;
   const nu = new Date();
@@ -568,7 +571,7 @@ app.post("/jobb/provperiod", express.json(), async (req, res) => {
     .eq("plan", "free")
     .is("paminnelse_skickad", null);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) throw new Error(error.message);
 
   let skickade = 0;
   for (const r of rader || []) {
@@ -595,7 +598,20 @@ app.post("/jobb/provperiod", express.json(), async (req, res) => {
       skickade++;
     }
   }
-  res.json({ granskade: rader?.length || 0, skickade });
+  return { granskade: rader?.length || 0, skickade };
+}
+
+/* Kvar för att kunna köra jobbet för hand vid felsökning, utan att
+   vänta på nästa varv. */
+app.post("/jobb/provperiod", express.json(), async (req, res) => {
+  if (!(await kravAdmin(req, res))) return;
+  // Utan den här kraschade anropet på db.from() av en null-referens.
+  if (!db) return res.status(503).json({ error: `Databasen saknas: ${dbSaknar.join(", ")}` });
+  try {
+    res.json(await kollaProvperioder());
+  } catch (fel) {
+    res.status(500).json({ error: fel.message });
+  }
 });
 
 /* ---------- Provbrev ----------
@@ -678,3 +694,54 @@ app.get("/admin/ordrar", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Kvario-servern lyssnar på :${PORT}`));
+
+/* ---------- Inbyggd schemaläggning ----------
+
+   Jobbet låg tidigare i ett GitHub-workflow. Det har en fälla: i ett
+   publikt repo stänger GitHub av schemalagda workflows efter 60 dagar
+   utan aktivitet i repot. Går det två månader utan en commit slutar
+   alltså både påminnelsebreven och Supabase-aktiviteten — tyst, och
+   just när projektet är som mest bortglömt.
+
+   Servern har inte det problemet. fly.toml håller den vid liv med
+   auto_stop_machines = 'off' och min_machines_running = 1, eftersom
+   Stripes webhook måste kunna landa när som helst. En maskin som
+   ändå står och snurrar dygnet runt kan lika gärna ställa frågan
+   själv, utan konto hos någon tredje part som kan sluta fungera.
+
+   Två saker på en gång: breven går ut, och frågan mot subscriptions
+   räknas som aktivitet hos Supabase, vars fria plan pausar projekt
+   efter sju dygn utan trafik.
+
+   Var sjätte timme och inte en gång om dygnet, för att ett enstaka
+   misslyckat varv inte ska kosta en hel dag. Extra varv är gratis:
+   paminnelse_skickad gör körningen idempotent, så ingen får två brev.
+   Av samma skäl är det ofarligt om appen någon gång skalas till fler
+   maskiner som alla kör sin egen timer. */
+const KOLL_TIMMAR = 6;
+let kollPagar = false;
+
+async function provperiodsvarv(anledning) {
+  /* En hängande databasfråga får inte stapla varv på varandra. Utan
+     flaggan hade en tyst timeout på tio minuter gett två samtidiga
+     körningar, och båda hade läst samma rader innan någon hann
+     skriva paminnelse_skickad. */
+  if (kollPagar) return;
+  kollPagar = true;
+  try {
+    const r = await kollaProvperioder();
+    console.log(`Provperiodskoll (${anledning}): granskade ${r.granskade}, skickade ${r.skickade}`);
+  } catch (fel) {
+    /* Loggas men kastas aldrig vidare. En misslyckad koll får inte
+       fälla servern — då stannar även betalningarna. */
+    console.error(`Provperiodskollen misslyckades (${anledning}):`, fel?.message || fel);
+  } finally {
+    kollPagar = false;
+  }
+}
+
+/* Inte direkt vid start: en omstart mitt i en deploy ska hinna få upp
+   databasanslutningen först, och ett par deployer i rad ska inte ge
+   en skur av körningar. */
+setTimeout(() => provperiodsvarv("start"), 60_000);
+setInterval(() => provperiodsvarv("timer"), KOLL_TIMMAR * 3600_000);
