@@ -41,7 +41,14 @@ const tomt = (v) => !v || !String(v).trim();
 export const SALJARE = {
   namn: process.env.FORETAG_NAMN || "[Ditt företagsnamn]",
   orgnr: tomt(process.env.FORETAG_ORGNR) ? null : process.env.FORETAG_ORGNR.trim(),
-  adress: process.env.FORETAG_ADRESS || "[Gatuadress, postnummer, ort]",
+  /* Valfri, som org.nr och momsnr. En enskild firma har ofta hemadressen
+     som företagsadress, och den behöver inte stå på varje kvitto till
+     varje kund. Lämnas den tom utelämnas raden helt i stället för att en
+     platshållare skickas ut — vilket var vad som hände förut.
+
+     Notera att adressen ändå måste finnas tillgänglig för konsumenter
+     någonstans, enligt distansavtalslagen. Villkoren är rätt ställe. */
+  adress: tomt(process.env.FORETAG_ADRESS) ? null : process.env.FORETAG_ADRESS.trim(),
   epost: process.env.FORETAG_EPOST || "[din@epost.se]",
   momsreg: tomt(process.env.FORETAG_MOMSNR) ? null : process.env.FORETAG_MOMSNR.trim(),
 };
@@ -151,7 +158,7 @@ export function brev({ rubrik, ingress, kropp, fot }) {
       SALJARE.orgnr && `Org.nr ${fly(SALJARE.orgnr)}`,
       SALJARE.momsreg && `Momsreg.nr ${fly(SALJARE.momsreg)}`,
     ].filter(Boolean).join(" · ")}${SALJARE.orgnr || SALJARE.momsreg ? "<br>" : ""}
-    ${fly(SALJARE.adress)}<br>
+    ${SALJARE.adress ? `${fly(SALJARE.adress)}<br>` : ""}
     <a href="mailto:${fly(SALJARE.epost)}" style="color:${F.mist}">${fly(SALJARE.epost)}</a>
     <p style="margin:14px 0 0">
       Kvario är ett beräknings- och planeringsverktyg, inte skatterådgivning.
@@ -182,5 +189,8 @@ export function textbrev({ rubrik, stycken, fot }) {
     SALJARE.adress,
     SALJARE.epost,
     APP_URL,
-  ].filter((r) => r !== null && r !== undefined).join("\n");
+    /* Adressen kan vara null. Filtret tog redan bort null och undefined,
+       men inte tomma strängar — och en sådan blev en blank rad mitt i
+       signaturen. */
+  ].filter((r) => r !== null && r !== undefined && String(r).trim() !== "").join("\n");
 }

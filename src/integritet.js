@@ -18,10 +18,18 @@
 
 export const POLICY_VERSION = "2026-01";
 
+/* Personuppgiftsansvarig. Måste gå att identifiera enligt GDPR, så
+   platshållare duger inte — de låg live i policyn på en sajt som tog
+   emot betalningar.
+
+   Namnet ska vara det registrerade, inte varumärket, om de skiljer
+   sig åt. Organisationsnumret för en enskild firma är personnumret;
+   det är obehagligt men det är den uppgift som identifierar den
+   ansvarige, och den står redan i Bolagsverkets öppna register. */
 export const ANSVARIG = {
-  namn: "[Ditt företagsnamn]",
+  namn: "Kvario",
   orgnr: "[Organisationsnummer]",
-  epost: "[din@epost.se]",
+  epost: "info@kvario.se",
 };
 
 export const INTEGRITET = [
