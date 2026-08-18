@@ -265,7 +265,9 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 
 
 .lp{max-width:940px;margin:0 auto;padding-bottom:60px}
-.lpNav{display:flex;justify-content:space-between;align-items:center;padding:6px 0 34px;gap:16px;flex-wrap:wrap}
+/* Lite luft ovanför märket. Med 6 px låg det nästan i överkanten på
+   mobil, där .kvar bidrar med mindre än på desktop. */
+.lpNav{display:flex;justify-content:space-between;align-items:center;padding:16px 0 34px;gap:16px;flex-wrap:wrap}
 .lpNavRight{display:flex;align-items:center;gap:16px}
 .lpHero{padding:24px 0 44px;max-width:660px}
 .lpH1{font-family:'Familjen Grotesk';font-size:clamp(32px,5.5vw,50px);line-height:1.08;letter-spacing:-.03em;font-weight:700;margin:0 0 20px}
@@ -461,7 +463,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 
 .adminIdentitet{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--mist)}
 .adminVy{max-width:1080px;margin:0 auto;padding-bottom:60px}
-.adminTopp{display:flex;justify-content:space-between;align-items:flex-end;padding:6px 0 22px;gap:16px;flex-wrap:wrap}
+.adminTopp{display:flex;justify-content:space-between;align-items:flex-end;padding:16px 0 22px;gap:16px;flex-wrap:wrap}
 .adminH1{font-family:'Familjen Grotesk';font-size:26px;font-weight:700;letter-spacing:-.02em;margin:5px 0 0}
 .adminFlikar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:18px}
 .adminFlikar .sb{position:relative}
@@ -573,16 +575,17 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
   .hero{padding:24px 17px 20px}
   .alert{padding:14px 14px}
 
-  /* Landningssidan ligger utanför .wrap och fick därför ingen
-     marginal alls — texten låg an mot skärmkanten på 0 px. Den är
-     det första en ny besökare ser, och den enda sidan de flesta
-     någonsin ser. */
-  .lp{
+  /* Landningssidan och adminvyn ligger båda utanför .wrap och fick
+     därför ingen marginal alls — innehållet låg an mot skärmkanten på
+     0 px. Landningssidan är det första en ny besökare ser, adminvyn
+     den enda du själv använder. Samma mått som appens kort. */
+  .lp, .adminVy{
     padding-left:max(22px, env(safe-area-inset-left));
     padding-right:max(22px, env(safe-area-inset-right));
   }
   .lpPanel{padding:22px 18px}
   .lpHero{padding:18px 0 34px}
+  .adminPanel{padding:20px 17px}
   /* Flikraden går ända ut med flit — den ska kunna dras i från
      skärmkanten. Innehållet i den hålls i linje med korten. */
   .flikar{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px}
