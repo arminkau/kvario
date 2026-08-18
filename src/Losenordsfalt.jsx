@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { granskaLosenord, styrka, MINSTA_LANGD } from "./losenordskrav";
 
 /* ============================================================
    Lösenordsfält med möjlighet att se det man skriver
@@ -22,8 +23,18 @@ export default function Losenordsfalt({
   /* naken utelämnar etiketten, för fält som redan sitter i en rad
      med egen rubrik ovanför — som lösenordsbytet under Konto. */
   naken = false,
+  /* Sätts när ett nytt lösenord ska väljas. Då visas kraven medan
+     man skriver; vid inloggning vore det bara i vägen — där ska
+     man skriva ett lösenord man redan har. */
+  nytt = false,
+  epost = "",
 }) {
   const [syns, setSyns] = useState(false);
+  const [rort, setRort] = useState(false);
+
+  const invand = nytt && rort && varde.length > 0;
+  const anmarkning = invand ? granskaLosenord(varde, epost) : null;
+  const styrkan = invand && !anmarkning ? styrka(varde) : null;
 
   const falt = (
     <span className={`losenordRad${naken ? " grow" : ""}`}>
@@ -32,9 +43,10 @@ export default function Losenordsfalt({
         type={syns ? "text" : "password"}
         value={varde}
         placeholder={placeholder}
-        onChange={(e) => satt(e.target.value)}
+        onChange={(e) => { satt(e.target.value); setRort(true); }}
         onKeyDown={(e) => e.key === "Enter" && onEnter?.()}
         autoComplete={autoComplete}
+        aria-describedby={nytt ? `${id}-krav` : undefined}
       />
       <button
         type="button"
@@ -51,12 +63,32 @@ export default function Losenordsfalt({
     </span>
   );
 
-  if (naken) return falt;
+  /* Beskedet under fältet. Innan man börjat skriva står bara kravet,
+     så att det inte kommer som en överraskning efteråt. */
+  const besked = nytt && (
+    <p className="losenordKrav" id={`${id}-krav`} aria-live="polite">
+      {anmarkning ? (
+        <span className="losenordFel">{anmarkning}</span>
+      ) : styrkan ? (
+        <>
+          <span className={`losenordStapel niva${styrkan.niva}`} aria-hidden="true">
+            <i /><i /><i /><i />
+          </span>
+          {styrkan.ord}
+        </>
+      ) : (
+        `Minst ${MINSTA_LANGD} tecken. En mening du minns är både starkare och lättare än ett kort krångligt ord.`
+      )}
+    </p>
+  );
+
+  if (naken) return <>{falt}{besked}</>;
 
   return (
     <label className="authLabel" htmlFor={id}>
       {etikett}
       {falt}
+      {besked}
     </label>
   );
 }

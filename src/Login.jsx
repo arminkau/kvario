@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { signInWithGoogle, signInWithPassword, signUpWithPassword, skickaLosenordsAterstallning } from "./auth";
 import { TESTKONTON } from "./testdata";
 import Losenordsfalt from "./Losenordsfalt.jsx";
+import { granskaLosenord, MINSTA_LANGD } from "./losenordskrav";
 
 export default function Login({ onBack, onTestkonto }) {
   const [lage, setLage] = useState("in"); // in | upp
@@ -45,7 +46,15 @@ export default function Login({ onBack, onTestkonto }) {
 
   const submit = async () => {
     if (!giltigEpost) return setError("Skriv en giltig e-postadress.");
-    if (losenord.length < 6) return setError("Lösenordet måste vara minst 6 tecken.");
+    /* Kraven gäller bara när ett nytt lösenord väljs. Vid inloggning
+       ska ett gammalt kort lösenord fortfarande släppas fram — annars
+       låser vi ute dem som registrerade sig innan kravet skärptes. */
+    if (lage === "upp") {
+      const fel = granskaLosenord(losenord, email);
+      if (fel) return setError(fel);
+    } else if (!losenord) {
+      return setError("Skriv ditt lösenord.");
+    }
     setStatus("sending");
     setError("");
     try {
@@ -180,9 +189,11 @@ export default function Login({ onBack, onTestkonto }) {
           id="losenord"
           varde={losenord}
           satt={setLosenord}
-          placeholder={lage === "upp" ? "Minst 6 tecken" : "Ditt lösenord"}
+          placeholder={lage === "upp" ? `Minst ${MINSTA_LANGD} tecken` : "Ditt lösenord"}
           autoComplete={lage === "upp" ? "new-password" : "current-password"}
           onEnter={submit}
+          nytt={lage === "upp"}
+          epost={email}
         />
 
         {error && <p className="authError">{error}</p>}

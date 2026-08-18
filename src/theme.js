@@ -236,6 +236,22 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 }
 .losenordOga:hover{color:var(--ink);background:var(--paper)}
 .losenordOga:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+
+/* Beskedet under fältet. aria-live gör att skärmläsare läser upp
+   det som ändras, så texten måste finnas kvar även när allt är rätt
+   — därför byts den mot styrkan i stället för att försvinna. */
+.losenordKrav{
+  display:flex;align-items:center;gap:8px;
+  font-size:11.5px;line-height:1.5;color:var(--mist);
+  margin:6px 0 0;min-height:16px;
+}
+.losenordFel{color:var(--warn)}
+.losenordStapel{display:flex;gap:3px}
+.losenordStapel i{width:18px;height:3px;border-radius:2px;background:var(--line);display:block}
+.losenordStapel.niva1 i:nth-child(-n+1),
+.losenordStapel.niva2 i:nth-child(-n+2){background:var(--warn)}
+.losenordStapel.niva3 i:nth-child(-n+3){background:var(--brass)}
+.losenordStapel.niva4 i{background:var(--brass-dk)}
 .authError{font-size:12.5px;color:var(--warn);margin:-8px 0 12px}
 .authOr{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--mist);font-size:11.5px}
 .authOr::before,.authOr::after{content:'';flex:1;height:1px;background:var(--line)}

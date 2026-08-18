@@ -4,6 +4,7 @@ import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./bil
 import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen, loginViaToken } from "./auth";
 import Login from "./Login.jsx";
 import Losenordsfalt from "./Losenordsfalt.jsx";
+import { granskaLosenord, MINSTA_LANGD } from "./losenordskrav";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
 import { MARKE, TAGLINE, MG, STAPEL } from "./texter";
@@ -86,7 +87,8 @@ function NyttLosenordVy({ onKlart }) {
   const [error, setError] = useState("");
 
   const submit = async () => {
-    if (losenord.length < 6) return setError("Lösenordet måste vara minst 6 tecken.");
+    const kravfel = granskaLosenord(losenord);
+    if (kravfel) return setError(kravfel);
     setStatus("sending");
     setError("");
     try {
@@ -108,9 +110,10 @@ function NyttLosenordVy({ onKlart }) {
             id="nyttLosenord"
             varde={losenord}
             satt={setLosenord}
-            placeholder="Minst 6 tecken"
+            placeholder={`Minst ${MINSTA_LANGD} tecken`}
             autoComplete="new-password"
             onEnter={submit}
+            nytt
           />
           {error && <p className="authError">{error}</p>}
           <button className="add wide" onClick={submit} disabled={status === "sending"}>
@@ -888,7 +891,8 @@ export default function KvarioApp() {
 
   const sparaNyttLosen = async () => {
     setKontoBesked(""); setKontoFel("");
-    if (nyttLosen.length < 6) return setKontoFel("Lösenordet måste vara minst 6 tecken.");
+    const kravfel = granskaLosenord(nyttLosen, session?.user?.email);
+    if (kravfel) return setKontoFel(kravfel);
     try {
       await sattNyttLosenord(nyttLosen);
       setNyttLosen("");
@@ -2225,9 +2229,11 @@ export default function KvarioApp() {
                   id="bytLosenord"
                   varde={nyttLosen}
                   satt={setNyttLosen}
-                  placeholder="Minst 6 tecken"
+                  placeholder={`Minst ${MINSTA_LANGD} tecken`}
                   autoComplete="new-password"
                   onEnter={sparaNyttLosen}
+                  nytt
+                  epost={session?.user?.email}
                 />
                 <button className="add" onClick={sparaNyttLosen}>Byt lösenord</button>
               </div>
