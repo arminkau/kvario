@@ -13,6 +13,7 @@ import Rapport, { RAPPORTER } from "./Rapport.jsx";
 import Admin from "./Admin.jsx";
 import { TESTKONTON, ADMIN_TESTDATA } from "./testdata";
 import { VILLKOR, VILLKOR_VERSION } from "./villkor";
+import { sparaGodkannande } from "./samtycke";
 import { INTEGRITET, LAGRING, POLICY_VERSION, ANSVARIG } from "./integritet";
 import { COUNTRIES, marginalskatt, personalkostnad, FAKTURATYPER, SENASTE_AR, varden, preliminarskatt } from "./tax";
 import { Marginalkurvan } from "./Charts.jsx";
@@ -1100,11 +1101,18 @@ export default function KvarioApp() {
             <button
               className="add wide"
               disabled={!acceptar}
-              onClick={() => patch({
-                onboarded: true,
-                trialStart: state.trialStart || Date.now(),
-                villkor: { version: VILLKOR_VERSION, at: new Date().toISOString(), last: true },
-              })}
+              onClick={() => {
+                patch({
+                  onboarded: true,
+                  trialStart: state.trialStart || Date.now(),
+                  villkor: { version: VILLKOR_VERSION, at: new Date().toISOString(), last: true },
+                });
+                /* Avsiktligt utan await. Raden är beviset vid en tvist,
+                   men den får inte stå i vägen för den som vill komma
+                   igång — misslyckas den loggas det och användaren
+                   släpps ändå in. */
+                sparaGodkannande(userId, VILLKOR_VERSION);
+              }}
             >
               Kom igång
             </button>
@@ -1297,6 +1305,20 @@ export default function KvarioApp() {
             <p>{d.revenue > country.threshold
               ? <><strong>Du har passerat omsättningsgränsen för moms.</strong> Din omsättning på {kr(d.revenue)} kr exklusive moms överstiger 120 000 kr, så momsbefrielsen upphör automatiskt. Anmäl momsregistrering till Skatteverket. Momsplikten gällde redan från den faktura som passerade gränsen.</>
               : <><strong>Du närmar dig omsättningsgränsen för moms.</strong> Du ligger på {kr(d.revenue)} kr av 120 000 kr exklusive moms. Passerar du gränsen upphör momsbefrielsen utan beslut, och du behöver anmäla dig till Skatteverket.</>}</p>
+          </div>
+        )}
+        {/* 120 000-gränsen räcker inte hela vägen. Säljer man tjänster till
+            företag i andra EU-länder ska en periodisk sammanställning lämnas,
+            och den kräver momsregistrering oavsett hur liten omsättningen är.
+            Utan den här raden ser man bara gränsvarningen ovan, tror att man
+            har gott om marginal kvar, och missar ett krav som redan gäller. */}
+        {!d.momsreg && (d.perTyp?.eub2b || 0) > 0 && (
+          <div className="alert">
+            <span className="bang">!</span>
+            <p><strong>Du fakturerar företag i EU utan att vara momsregistrerad.</strong> Säljer
+            du tjänster till företag i andra EU-länder ska du lämna periodisk sammanställning,
+            och det kräver momsregistrering även om du ligger under 120 000 kr. Stäm av med
+            Skatteverket vad som gäller för just din försäljning.</p>
           </div>
         )}
         {d.unpaid > 0 && !paidOnly && (
@@ -1646,7 +1668,7 @@ export default function KvarioApp() {
               </div>
             </div>
 
-            {form.settings.map((s) => (
+            {form.settings.filter((s) => !s.visas || s.visas(settings)).map((s) => (
               <div className="sblock" key={s.key}>
                 <div className="slabel">{s.label}</div>
                 {s.type === "percent" ? (
@@ -1699,11 +1721,18 @@ export default function KvarioApp() {
         {/* DIAGRAM */}
         {d.tax && country.forms && (
           <div className={`panel ${isPro ? "" : "locked"}`}>
-            <button className="panelHead toggleHead" onClick={() => setOpenChart(openChart === "marg" ? null : "marg")}>
-              <h2>Dina skattetrösklar</h2>
-                <Info id="marg" open={openInfo} setOpen={setOpenInfo} />
-              <span className="eyebrow">{openChart === "marg" ? "Dölj" : "Visa diagram"}</span>
-            </button>
+            {/* Info-knappen låg tidigare inuti den här knappen. En knapp
+                i en knapp är ogiltig HTML: webbläsaren bryter isär dem,
+                och med tangentbord gick den inre aldrig att nå. Nu är
+                huvudet en rad med två syskon i stället. */}
+            <div className="panelHead toggleHead">
+              <button className="toggleKnapp" aria-expanded={openChart === "marg"}
+                      onClick={() => setOpenChart(openChart === "marg" ? null : "marg")}>
+                <h2>Dina skattetrösklar</h2>
+                <span className="eyebrow">{openChart === "marg" ? "Dölj" : "Visa diagram"}</span>
+              </button>
+              <Info id="marg" open={openInfo} setOpen={setOpenInfo} />
+            </div>
             <InfoBox id="marg" open={openInfo}>Marginalskatten är vad nästa intjänade hundralapp kostar dig. Den är inte jämn utan har trappsteg där reglerna ändras: nedsättningen av egenavgifterna som tar slut, och den statliga skattens skiktgräns. Att veta var nästa steg ligger är det som gör planering möjlig.</InfoBox>
             {!isPro && openChart === "marg" && (
               <div className="lockOverlay"><div>
@@ -2033,6 +2062,21 @@ export default function KvarioApp() {
               </label>
               <button className="add" onClick={addCost}>Lägg till</button>
             </div>
+
+            {/* Beloppet tolkas alltid som exklusive moms. Är man momsregistrerad
+                är det självklart — man bokför ex moms. Är man det inte hanterar
+                man aldrig moms någon annanstans, ser 15 000 kr på kvittot och
+                skriver 15 000 — och får 18 750 som kostnad. Momsspecifikationen
+                är obligatorisk på kvitton, så rätt siffra står där. Den här
+                raden pekar ut vilken. */}
+            {!d.momsreg && (
+              <p className="foot">
+                <strong>Skriv beloppet exklusive moms</strong> och välj momssatsen bredvid —
+                båda står på kvittots momsspecifikation. Eftersom du inte är momsregistrerad
+                får du inte dra av momsen, så appen lägger tillbaka den och räknar hela
+                priset som din kostnad.
+              </p>
+            )}
 
             <p className="foot">
               <strong>Återkommande</strong> är för utgifter som ser likadana ut varje månad —

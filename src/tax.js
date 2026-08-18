@@ -292,6 +292,11 @@ const ENSKILD = {
       key: "momsperiod", label: "Redovisar moms", type: "val", default: "helar",
       val: [["helar", "En gång om året"], ["kvartal", "Varje kvartal"], ["manad", "Varje månad"]],
       hint: "Styr när momsdeklarationen ska vara inne. Upp till 1 miljon kr i omsättning får du redovisa en gång om året, mellan 1 och 40 miljoner varje kvartal, däröver varje månad. Du kan alltid välja att redovisa oftare än du måste — kolla vad som står i ditt registreringsbevis.",
+      /* Den som inte är momsregistrerad lämnar ingen momsdeklaration, och
+         då finns ingen period att välja. Valet ligger kvar i inställningarna
+         och tas fram igen vid registrering — annars hade den som råkat
+         kryssa fel fått börja om. */
+      visas: (s) => s.momsregistrerad !== false,
     },
     {
       key: "annanInkomst", label: "Annan inkomst av tjänst", type: "number", default: 0, suffix: "kr/år",

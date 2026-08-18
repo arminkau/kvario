@@ -3,3 +3,8 @@ dist
 .env
 .env.utveckling
 .DS_Store
+
+# Backuperna innehåller varje kunds fakturor, kostnader och kvitton
+# i klartext. De får aldrig till git — inte ens i ett privat repo,
+# eftersom historiken följer med varje klon för alltid.
+backup/

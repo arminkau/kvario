@@ -358,8 +358,13 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .swB{background:var(--band-1)}
 .chartNote{font-size:12.5px;color:var(--slate);line-height:1.6;margin:12px 0 0}
 
-.toggleHead{width:100%;font:inherit;background:none;border:none;padding:0;cursor:pointer;text-align:left}
-.toggleHead:hover h2{color:var(--brass-dk)}
+.toggleHead{width:100%}
+/* Själva klickytan. Ligger som syskon till info-knappen i stället för
+   runt den, och tar resten av bredden så att rubriken och "Visa
+   diagram" hamnar i var sin ände precis som förut. */
+.toggleKnapp{flex:1;display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer;text-align:left}
+.toggleKnapp:hover h2{color:var(--brass-dk)}
 .toggleHead .eyebrow{color:var(--brass-dk)}
 .payrollSum{display:flex;gap:28px;flex-wrap:wrap;padding:14px 0 2px;border-top:1px solid var(--line);margin-top:8px}
 .payrollSum div{display:flex;flex-direction:column;gap:3px}
