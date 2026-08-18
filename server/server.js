@@ -180,8 +180,16 @@ async function kravAdmin(req, res) {
    Frontend anropar denna när någon klickar "Fortsätt till betalning". */
 
 app.post("/checkout", express.json(), async (req, res) => {
-  const { userId, email, interval } = req.body;
+  const { userId, email, interval, plattform } = req.body;
   if (!userId) return res.status(400).json({ error: "userId saknas" });
+
+  /* Startade köpet i mobilappen läggs retur=app på returadressen. Sidan
+     som Stripe skickar till studsar då vidare till se.kvario.app://betalt
+     och lämnar tillbaka kunden till appen.
+
+     Stripe godtar bara http och https i success_url, så djuplänken kan
+     inte stå här direkt — därför omvägen via en sida på kvario.se. */
+  const retur = plattform === "app" ? "&retur=app" : "";
 
   const nyttCheckoutFörsök = async (customerId) => stripe.checkout.sessions.create({
     mode: "subscription",
@@ -203,8 +211,8 @@ app.post("/checkout", express.json(), async (req, res) => {
       type: "text",
       optional: false,
     }],
-    success_url: `${process.env.APP_URL}/?betalt=1`,
-    cancel_url: `${process.env.APP_URL}/?avbruten=1`,
+    success_url: `${process.env.APP_URL}/?betalt=1${retur}`,
+    cancel_url: `${process.env.APP_URL}/?avbruten=1${retur}`,
     allow_promotion_codes: true,
     locale: "sv",
   });

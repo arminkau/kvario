@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
-import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen, loginViaToken } from "./auth";
+import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen, loginViaToken, narBetalningReturnerar } from "./auth";
 import Login from "./Login.jsx";
 import Losenordsfalt from "./Losenordsfalt.jsx";
 import { granskaLosenord, MINSTA_LANGD } from "./losenordskrav";
@@ -486,6 +486,14 @@ export default function KvarioApp() {
     document.addEventListener("visibilitychange", vakna);
     return () => { alive = false; document.removeEventListener("visibilitychange", vakna); };
   }, [userId]);
+
+  /* Betalning avslutad i fliken ovanpå appen. Djuplänken har redan
+     stängt fliken; här startas samma väntan på webhooken som webben
+     får via ?betalt=1. Avbröt kunden i kassan händer ingenting — då
+     ska hen bara vara tillbaka där hen var. */
+  useEffect(() => narBetalningReturnerar(({ avbruten }) => {
+    if (!avbruten) setBetalning("vantar");
+  }), []);
 
   /* ---------- Spara ---------- */
   useEffect(() => {

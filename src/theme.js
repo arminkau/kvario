@@ -176,8 +176,12 @@
 .limitNote{font-size:12px;color:var(--slate);padding:12px 0 0;margin:0}
 
 .form{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-input,select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:3px;background:var(--paper);color:var(--ink);min-width:0}
-input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
+/* textarea står med i listan med flit. Webbläsare ger den ett eget
+   standardtypsnitt — ofta monospace — i stället för sidans, så utan
+   font:inherit här stack anledningsfältet vid en återbetalning ut mot
+   alla andra fält omkring det. */
+input,select,textarea{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:3px;background:var(--paper);color:var(--ink);min-width:0}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
 .grow{flex:1;min-width:110px}
 .w130{width:132px}.w90{width:92px}.w70{width:74px}
 .big{font-size:19px;font-weight:600;padding:5px 9px}

@@ -10,6 +10,8 @@
    och betalande kunder skulle aldrig bli Pro i databasen.
    ============================================================ */
 
+import { oppnaIAppen, betalningGarIAppen } from "./auth";
+
 const API = import.meta.env.VITE_API_URL;
 
 /* Skickar användaren till Stripe Checkout.
@@ -23,11 +25,21 @@ export async function startCheckout(userId, interval) {
     const r = await fetch(`${API}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, interval }),
+      /* Servern behöver veta varifrån köpet startade för att kunna
+         välja returadress. Från appen ska Stripe skicka tillbaka till
+         en sida som studsar vidare in i appen igen — annars blir
+         kunden kvar i webbläsaren, utloggad, direkt efter att ha
+         betalat. */
+      body: JSON.stringify({ userId, interval, plattform: betalningGarIAppen ? "app" : "webb" }),
     });
     const data = await r.json();
     if (r.ok && data.url) {
-      window.location.href = data.url;
+      /* I appen öppnas kassan i en flik ovanpå, inte genom att
+         navigera bort. Navigerar man bort lämnar man appens adress,
+         och Capacitor skickar då hela sidan till systemets
+         webbläsare. */
+      if (betalningGarIAppen) await oppnaIAppen(data.url);
+      else window.location.href = data.url;
       return { ok: true };
     }
     return { ok: false, reason: "error", message: data.error };

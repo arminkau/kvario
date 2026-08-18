@@ -17,6 +17,29 @@
   </head>
   <body style="margin:0">
     <div id="root"></div>
+    <!-- Studsen tillbaka till mobilappen efter ett köp.
+
+         Stripe godtar bara http och https i success_url, så djuplänken
+         kan inte anges där. I stället skickar Stripe hit, och den här
+         raden lämnar vidare till appen.
+
+         Den står före modulen med flit: laddades hela appen först skulle
+         den hinna rendera i webbläsarfliken, och kunden se en skymt av en
+         inloggningssida innan appen tog över. Skriptet är avsiktligt
+         gammaldags och beroendefritt så att det kör direkt.
+
+         replace och inte href: den här adressen ska inte ligga kvar i
+         historiken, för då leder bakåtknappen till en tom studssida. -->
+    <script>
+      (function () {
+        try {
+          var f = new URLSearchParams(window.location.search);
+          if (f.get("retur") !== "app") return;
+          var avbruten = f.get("avbruten") === "1" ? "?avbruten=1" : "";
+          window.location.replace("se.kvario.app://betalt" + avbruten);
+        } catch (e) { /* gammal webbläsare — appen laddas som vanligt */ }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

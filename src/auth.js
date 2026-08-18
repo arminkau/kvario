@@ -193,6 +193,42 @@ export async function fetchOrdrar(userId) {
    annars vägrar Supabase skicka vidare dit. */
 const APP_ADRESS = "se.kvario.app://auth";
 
+/* ---------- Retur från Stripe ----------
+
+   Kassan ligger på checkout.stripe.com, alltså utanför appens egen
+   adress. Öppnas den med window.location lämnar man appen och hamnar
+   i systemets webbläsare — där man aldrig loggat in, och där man blev
+   stående efter att ha betalat.
+
+   I stället öppnas den i en flik ovanpå appen, precis som Google, och
+   Stripe skickar tillbaka till en sida som studsar vidare hit. Då är
+   man tillbaka i appen med sin session i behåll.
+
+   Adressen måste stå i AndroidManifest.xml och i Info.plist, samma
+   ställen som se.kvario.app://auth. */
+const APP_BETALT = "se.kvario.app://betalt";
+
+/* Prenumeranterna sitter i App.jsx. En uppsättning i stället för en
+   enda funktion: React kan montera om och registrera sig på nytt, och
+   en ensam variabel hade då tappat den förra utan att märkas. */
+const betalningsLyssnare = new Set();
+
+export function narBetalningReturnerar(fn) {
+  betalningsLyssnare.add(fn);
+  return () => betalningsLyssnare.delete(fn);
+}
+
+/* Öppnar Stripe i en flik ovanpå appen. Faller tillbaka på vanlig
+   navigering när plugin saknas — då fungerar köpet ändå, det blir
+   bara den gamla vägen via webbläsaren. */
+export async function oppnaIAppen(url) {
+  if (!harPlugin("Browser")) { window.location.href = url; return false; }
+  await Browser.open({ url, presentationStyle: "popover" });
+  return true;
+}
+
+export const betalningGarIAppen = harPlugin("Browser") && harPlugin("App");
+
 /* Svaret kan se ut på två sätt, och det är inte vi som väljer vilket.
 
    supabase-js kör flowType "implicit" som standard. Då kommer nycklarna
@@ -204,6 +240,10 @@ const APP_ADRESS = "se.kvario.app://auth";
    än ett fel, eftersom ingenting alls händer. */
 async function taEmotSvar(url) {
   if (!url?.startsWith(APP_ADRESS)) return false;
+  /* Lyssnaren sätts numera upp även utan Supabase, för betalningens
+     skull. Utan den här raden anropades auth på en klient som är null
+     när nycklarna saknas. */
+  if (!hasAuth) return false;
 
   const delEfter = (tecken) =>
     url.includes(tecken) ? url.slice(url.indexOf(tecken) + 1) : "";
@@ -252,12 +292,33 @@ async function taEmotSvar(url) {
    Att båda vägarna leder till samma funktion gör att en inloggning
    som råkar komma tillbaka på det ena sättet inte beter sig
    annorlunda än den som kommer tillbaka på det andra. */
-if (hasAuth && harPlugin("App")) {
+/* Två sorters retur kommer in här: inloggningen och betalningen. De
+   skiljs på adressen och inte på ordningen de kommer i — appen kan bli
+   väckt av vilken som helst av dem först. */
+async function taEmotDjuplank(url) {
+  if (!url) return false;
+
+  if (url.startsWith(APP_BETALT)) {
+    /* Fliken stängs innan lyssnarna körs. Låg den kvar hamnade
+       kvittot bakom Stripes sida, och det såg ut som att ingenting
+       hände fastän betalningen gått igenom. */
+    try { await Browser.close(); } catch { /* redan stängd */ }
+    const avbruten = url.includes("avbruten=1");
+    for (const fn of betalningsLyssnare) {
+      try { fn({ avbruten }); } catch { /* en trasig lyssnare får inte stoppa de andra */ }
+    }
+    return true;
+  }
+
+  return taEmotSvar(url);
+}
+
+if (harPlugin("App")) {
   NativeApp.addListener("appUrlOpen", ({ url }) => {
-    taEmotSvar(url).catch(() => {});
+    taEmotDjuplank(url).catch(() => {});
   });
   NativeApp.getLaunchUrl()
-    .then((r) => taEmotSvar(r?.url))
+    .then((r) => taEmotDjuplank(r?.url))
     .catch(() => {});
 }
 

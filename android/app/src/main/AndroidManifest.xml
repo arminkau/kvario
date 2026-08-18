@@ -42,6 +42,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="se.kvario.app" android:host="auth" />
+                <!--
+                    Returen från Stripe. Kassan öppnas i en flik ovanpå
+                    appen, och sidan Stripe skickar till studsar vidare
+                    hit så att kunden hamnar i appen igen i stället för
+                    att bli kvar i webbläsaren, utloggad, direkt efter
+                    att ha betalat.
+
+                    Egen host och inte ett bredare filter: appen ska
+                    bara fånga upp de två adresser den faktiskt väntar
+                    sig, inte allt som råkar börja med se.kvario.app.
+                -->
+                <data android:scheme="se.kvario.app" android:host="betalt" />
             </intent-filter>
 
         </activity>
