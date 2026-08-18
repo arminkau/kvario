@@ -1,5 +1,9 @@
-export const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+﻿export const CSS = `
+/* IBM Plex Mono är borttaget ur laddningen. Det användes bara till
+   siffror, och dess nolla har en prick i mitten — snyggt i kod, men
+   i en app full av belopp ser det ut som smuts. Ett typsnitt mindre
+   att hämta gör dessutom första sidvisningen snabbare. */
+@import url('https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
 .kvar {
   --ink:#131E26; --slate:#4A5D68; --mist:#8698A1;
@@ -7,13 +11,23 @@ export const CSS = `
   --brass:#B8862B; --brass-dk:#8C6418;
   --band-1:#3E5566; --band-2:#63798A; --band-3:#8A9CA8; --band-4:#AEBCC3;
   --warn:#9A4A25;
+
+  /* Siffror. Tidigare IBM Plex Mono, som har en prick mitt i nollan —
+     ett medvetet drag i det typsnittet, men i en app full av belopp
+     ser det ut som smuts på skärmen. Uppmätt: Plex Mono ger tre mörka
+     partier på nollans mitthöjd, Plex Sans två.
+
+     tabular-nums på varje regel gör jobbet monospace gjorde: alla
+     siffror lika breda, så kolumner med belopp står rakt. */
+  --siffror:'IBM Plex Sans',system-ui,sans-serif;
+
   background:var(--paper); color:var(--ink);
   font-family:'IBM Plex Sans',system-ui,sans-serif;
   min-height:100vh; padding:26px 18px 60px; -webkit-font-smoothing:antialiased;
 }
 .kvar *{box-sizing:border-box}
 .wrap{max-width:1080px;margin:0 auto}
-.num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.num{font-family:var(--siffror);font-variant-numeric:tabular-nums}
 .dim{color:var(--mist)}
 .brass{color:var(--brass-dk)}
 .eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mist);font-weight:600}
@@ -36,7 +50,7 @@ export const CSS = `
 
 .hero{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:30px 28px 24px;margin-bottom:14px}
 .heroTop{display:flex;justify-content:space-between;align-items:flex-start;gap:22px;flex-wrap:wrap;margin-bottom:24px}
-.bignum{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:clamp(38px,8vw,64px);font-weight:600;line-height:1;color:var(--brass-dk);letter-spacing:-.03em;margin:8px 0 6px}
+.bignum{font-family:var(--siffror);font-variant-numeric:tabular-nums;font-size:clamp(38px,8vw,64px);font-weight:600;line-height:1;color:var(--brass-dk);letter-spacing:-.03em;margin:8px 0 6px}
 .unit{font-size:.38em;margin-left:8px;color:var(--slate)}
 .sub{font-size:13px;color:var(--slate)}
 .toggleRow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--slate)}
@@ -54,7 +68,7 @@ export const CSS = `
 .swatch{width:9px;height:9px;border-radius:2px;flex:none;transform:translateY(-1px)}
 .lname{font-size:13.5px;font-weight:500;min-width:112px}
 .lnote{font-size:11.5px;color:var(--mist);flex:1}
-.lamt{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:13.5px}
+.lamt{font-family:var(--siffror);font-variant-numeric:tabular-nums;font-size:13.5px}
 .lrow.mine{border-bottom:none;padding-top:14px}
 .lrow.mine .lname,.lrow.mine .lamt{color:var(--brass-dk);font-weight:600;font-size:15px}
 .caveat{margin-top:15px;font-size:11.5px;color:var(--mist);line-height:1.55}
@@ -64,7 +78,7 @@ export const CSS = `
 .panelHead h2{font-family:'Familjen Grotesk';font-size:15px;font-weight:600;margin:0}
 
 .envRow{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
-.midnum{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;margin-top:5px}
+.midnum{font-family:var(--siffror);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;margin-top:5px}
 .gap.warn .midnum{color:var(--warn)}
 .gap.ok .midnum{color:var(--brass-dk)}
 .envBar{height:7px;background:var(--paper);border-radius:999px;overflow:hidden}
@@ -114,7 +128,7 @@ export const CSS = `
 .mgLead{font-family:'Familjen Grotesk';font-size:18px;line-height:1.45;margin:0 0 14px;font-weight:400}
 .mgRows{display:grid;gap:0;max-width:400px;margin-bottom:14px}
 .mgRows div{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px solid var(--line)}
-.mgRows b{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.mgRows b{font-family:var(--siffror);font-variant-numeric:tabular-nums}
 .mgRows .tot{border-bottom:none;border-top:1px solid var(--ink);margin-top:2px;font-weight:600}
 .mgRows .tot b{color:var(--brass-dk)}
 .mgSmalt{font-size:11.5px;color:var(--mist);line-height:1.6;margin:10px 0 0;max-width:560px}
@@ -135,19 +149,19 @@ export const CSS = `
 .pending h3{font-family:'Familjen Grotesk';font-size:15px;margin:8px 0 6px;font-weight:600}
 .pending p{font-size:13px;color:var(--slate);margin:0 0 14px;line-height:1.55}
 .needs{display:flex;gap:6px;flex-wrap:wrap}
-.need{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 9px;border:1px solid var(--line);border-radius:3px;color:var(--slate)}
+.need{font-family:var(--siffror);font-size:11px;padding:4px 9px;border:1px solid var(--line);border-radius:3px;color:var(--slate)}
 
 .alert{display:flex;gap:11px;align-items:flex-start;border-left:3px solid var(--warn);background:var(--surface);padding:14px 18px;margin-bottom:14px;border-radius:0 4px 4px 0}
 .panel .alert{margin:14px 0 0;padding-left:14px}
 .alert p{margin:0;font-size:12.5px;color:var(--slate);line-height:1.55}
 .alert strong{color:var(--ink)}
-.bang{font-family:'IBM Plex Mono',monospace;color:var(--warn);font-weight:600}
+.bang{font-family:var(--siffror);color:var(--warn);font-weight:600}
 
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:820px){.cols{grid-template-columns:1fr}.envRow,.fcRow{gap:22px}}
 .item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
 .iname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.iamt{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
+.iamt{font-family:var(--siffror);font-variant-numeric:tabular-nums;font-size:12.5px}
 .tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--mist);cursor:pointer;background:transparent;font-family:inherit}
 .tag[data-paid="true"]{color:var(--brass-dk);border-color:var(--brass)}
 .x{background:none;border:none;color:var(--mist);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
@@ -186,7 +200,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .bopt{font:inherit;text-align:left;padding:13px 14px;border-radius:4px;border:1px solid var(--line);background:transparent;cursor:pointer;display:flex;flex-direction:column;gap:3px}
 .bopt[data-on="true"]{border-color:var(--brass);background:rgba(184,134,43,.07)}
 .bname{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mist);font-weight:600}
-.bprice{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600}
+.bprice{font-family:var(--siffror);font-size:20px;font-weight:600}
 .bnote{font-size:11px;color:var(--mist)}
 .modalNote{font-size:11px;color:var(--mist);line-height:1.55;margin:12px 0 0}
 
@@ -203,7 +217,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .obOpt:hover{border-color:var(--slate)}
 .obOpt[data-on="true"]{border-color:var(--brass);background:rgba(184,134,43,.07)}
 .obName{font-size:14.5px;font-weight:600}
-.obMeta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--mist);grid-column:1}
+.obMeta{font-family:var(--siffror);font-size:11.5px;color:var(--mist);grid-column:1}
 .obTag{grid-row:1/3;grid-column:2;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mist);border:1px solid var(--line);padding:3px 9px;border-radius:999px;white-space:nowrap}
 .obTag.on{color:var(--brass-dk);border-color:var(--brass)}
 .obWarn{font-size:12px;color:var(--slate);line-height:1.55;background:var(--paper);padding:12px 14px;border-radius:4px;margin:0 0 18px}
@@ -298,13 +312,13 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .lpLegend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--slate)}
 .lpLegend span{display:flex;align-items:center;gap:7px}
 .lpLegend i{width:8px;height:8px;border-radius:2px;display:block}
-.lpLegend b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+.lpLegend b{font-family:var(--siffror);font-weight:500}
 .lpLegend .mine{color:var(--brass-dk)}
 .lpH2{font-family:'Familjen Grotesk';font-size:24px;font-weight:700;letter-spacing:-.02em;margin:10px 0 10px}
 .lpBody{font-size:14px;line-height:1.65;color:var(--slate);margin:0 0 20px;max-width:520px}
 .lpSliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin:16px 0 22px}
 .lpSliders label{display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--slate)}
-.lpSliders b{font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:600}
+.lpSliders b{font-family:var(--siffror);color:var(--ink);font-weight:600}
 .lpSliders input[type=range]{width:100%;accent-color:var(--brass);padding:0;background:none;border:none}
 .lpResult{border-top:1px solid var(--line);padding-top:18px}
 .lpFeatures{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:16px}
@@ -322,7 +336,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 
 .chart{width:100%;height:auto;display:block;overflow:visible}
 .chart .grid{stroke:var(--line);stroke-width:1}
-.chart .axis{font-family:'IBM Plex Mono',monospace;font-size:10.5px;fill:var(--mist)}
+.chart .axis{font-family:var(--siffror);font-size:10.5px;fill:var(--mist)}
 .chart .line{fill:none;stroke:var(--brass);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .chart .lineB{stroke:var(--band-1);stroke-dasharray:5 4}
 .chart .area{fill:var(--brass);opacity:.08}
@@ -334,7 +348,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .chartFacts{display:flex;gap:30px;flex-wrap:wrap;margin:10px 0 6px}
 .chartFacts div{display:flex;flex-direction:column;gap:3px}
 .chartFacts span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mist);font-weight:600}
-.chartFacts b{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600}
+.chartFacts b{font-family:var(--siffror);font-size:16px;font-weight:600}
 .chartFacts .warn{color:var(--warn)}
 .chartLegend{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--slate)}
 .chartLegend span{display:flex;align-items:center;gap:7px}
@@ -349,10 +363,10 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .toggleHead .eyebrow{color:var(--brass-dk)}
 .payrollSum{display:flex;gap:28px;flex-wrap:wrap;padding:14px 0 2px;border-top:1px solid var(--line);margin-top:8px}
 .payrollSum div{display:flex;flex-direction:column;gap:3px}
-.payrollSum b{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600}
+.payrollSum b{font-family:var(--siffror);font-size:15px;font-weight:600}
 
 .infoBtn{width:17px;height:17px;flex:none;border-radius:50%;border:1px solid var(--line);background:transparent;
-  color:var(--mist);font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1;cursor:pointer;
+  color:var(--mist);font-family:var(--siffror);font-size:11px;line-height:1;cursor:pointer;
   margin-right:auto;padding:0;display:inline-flex;align-items:center;justify-content:center}
 .infoBtn:hover{border-color:var(--brass);color:var(--brass-dk)}
 .infoBtn[data-on="true"]{background:var(--brass);border-color:var(--brass);color:#fff}
@@ -366,7 +380,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .villkorKnapp:hover{border-color:var(--brass)}
 .villkorKnapp.last{background:rgba(184,134,43,.08);border-color:var(--brass)}
 .vkIkon{width:24px;height:24px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  background:var(--slate);color:var(--surface);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600}
+  background:var(--slate);color:var(--surface);font-family:var(--siffror);font-size:12px;font-weight:600}
 .villkorKnapp.last .vkIkon{background:var(--brass)}
 .vkText{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
 .vkText b{font-size:13.5px;font-weight:600}
@@ -442,7 +456,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .rRad{display:flex;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
 .rEtikett{min-width:190px}
 .rNot{flex:1;font-size:11.5px;color:var(--mist)}
-.rBelopp{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.rBelopp{margin-left:auto;font-family:var(--siffror);font-variant-numeric:tabular-nums}
 .rRad.stark{border-bottom:none;border-top:2px solid var(--ink);margin-top:4px;padding-top:11px;font-weight:600}
 .rRad.stark .rBelopp{font-size:15px;color:var(--brass-dk)}
 .rTabell{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px}
@@ -450,11 +464,11 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
   color:var(--mist);font-weight:600;padding:0 10px 7px 0;border-bottom:1px solid var(--line)}
 .rTabell td{padding:7px 10px 7px 0;border-bottom:1px solid var(--line);
   font-variant-numeric:tabular-nums}
-.rTabell .h{text-align:right;font-family:'IBM Plex Mono',monospace}
+.rTabell .h{text-align:right;font-family:var(--siffror)}
 .rTabell tfoot td{border-bottom:none;border-top:1px solid var(--ink);font-weight:600;padding-top:9px}
 .rFot{margin-top:36px;padding-top:18px;border-top:1px solid var(--line)}
 .rFot p{font-size:11px;line-height:1.65;color:var(--mist);margin:0 0 8px;max-width:680px}
-.rSid{font-family:'IBM Plex Mono',monospace}
+.rSid{font-family:var(--siffror)}
 
 @media print{
   .kvar{background:#fff;padding:0;color:#000}
@@ -471,7 +485,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
   padding:13px 0;border-bottom:1px solid var(--line)}
 .utlandRad b{font-size:13.5px;font-weight:600;display:block;margin-bottom:4px}
 .utlandRad p{margin:0;font-size:12px;line-height:1.6;color:var(--slate);max-width:520px}
-.utlandRad .fakturatext{margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mist)}
+.utlandRad .fakturatext{margin-top:6px;font-family:var(--siffror);font-size:11px;color:var(--mist)}
 
 .angerRad{display:flex;gap:11px;align-items:flex-start;margin:0 0 16px;font-size:12px;
   line-height:1.6;color:var(--slate);cursor:pointer}
@@ -488,7 +502,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .nyckeltalRad{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}
 .nyckeltal{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:16px 18px;
   display:flex;flex-direction:column;gap:5px}
-.nyckeltal b{font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600}
+.nyckeltal b{font-family:var(--siffror);font-size:23px;font-weight:600}
 .nyckeltal b.brass{color:var(--brass-dk)}
 .nyckeltal small{font-size:11.5px;color:var(--mist)}
 .adminPanel{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:22px 24px;margin-bottom:14px}
@@ -496,7 +510,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .adminSok{width:100%;font-size:13.5px;padding:9px 11px;margin-bottom:14px}
 .adminHjalp{font-size:12.5px;line-height:1.65;color:var(--slate);margin:0 0 16px;max-width:640px}
 .adminPanel .rTabell td{font-size:12.5px}
-.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+.mono{font-family:var(--siffror);font-size:12px}
 .plantag{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
 .plantag.pro{background:rgba(184,134,43,.14);color:var(--brass-dk)}
 .plantag.gratis{background:var(--paper);color:var(--mist)}
@@ -521,7 +535,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 .manadStapel{flex:1;height:9px;background:var(--paper);border-radius:999px;overflow:hidden;min-width:60px}
 .manadFyll{height:100%;background:var(--brass);border-radius:999px;transition:width .5s cubic-bezier(.4,0,.2,1)}
 .manadAntal{min-width:44px;text-align:right;color:var(--mist);font-size:11.5px}
-.manadBelopp{min-width:88px;text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.manadBelopp{min-width:88px;text-align:right;font-family:var(--siffror);font-variant-numeric:tabular-nums}
 .nyckeltal b.warn{color:var(--warn)}
 
 .kommunVal{margin-top:8px;font-size:12.5px;padding:7px 9px;max-width:230px;width:100%}

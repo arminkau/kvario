@@ -147,15 +147,15 @@ const DEFAULT_STATE = {
   villkor: null,
   countryCode: "SE",
   form: "enskild",
-  invoices: [
-    { id: 1, client: "Nordkap Studio", amount: 48000, currency: "SEK", vat: 25, paid: true },
-    { id: 2, client: "Lehmann GmbH", amount: 3200, currency: "EUR", vat: 25, paid: true },
-    { id: 3, client: "Ravel & Co", amount: 26500, currency: "SEK", vat: 25, paid: false },
-  ],
-  costs: [
-    { id: 1, label: "Dator", amount: 18900, currency: "SEK", vat: 25 },
-    { id: 2, label: "Kontorsplats", amount: 24000, currency: "SEK", vat: 25 },
-  ],
+  /* Tomt från början. Ett nytt konto fylldes tidigare med påhittade
+     fakturor och kostnader, vilket gav två problem: den som loggade
+     in första gången såg siffror som såg riktiga ut men var någon
+     annans, och behövde radera dem en och en innan de kunde börja.
+
+     Landningssidan visar redan hur uträkningen fungerar, med egna
+     siffror man kan skjuta på. Där hör demot hemma, inte i kontot. */
+  invoices: [],
+  costs: [],
   settingsMap: { SE: { kommunalskatt: 32.0, avgiftslage: "full", pension: 0 } },
   employees: [],
   paidOnly: false,
