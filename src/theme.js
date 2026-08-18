@@ -156,6 +156,12 @@
 .alert p{margin:0;font-size:12.5px;color:var(--slate);line-height:1.55}
 .alert strong{color:var(--ink)}
 .bang{font-family:var(--siffror);color:var(--warn);font-weight:600}
+/* Kvittot efter en betalning. Mässing i stället för en ny grön färg:
+   den signalerar redan "klart" på andra ställen, som i det ikryssade
+   villkorssteget, och en färg till hade bara gjort paletten grumligare. */
+.alert.godkand{border-left-color:var(--brass)}
+.alert.godkand .bang{color:var(--brass-dk)}
+.alert .linkbtn{margin:0 0 0 auto;align-self:center;flex:none;white-space:nowrap}
 
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:820px){.cols{grid-template-columns:1fr}.envRow,.fcRow{gap:22px}}

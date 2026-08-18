@@ -180,6 +180,13 @@ export default function KvarioApp() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!hasAuth);
   const [sub, setSub] = useState(null);
+  /* null | "vantar" | "klar" | "drojer" — se effekten längre ned.
+     Läses ur adressen direkt vid första renderingen, innan något
+     hunnit städa bort parametern. */
+  const [betalning, setBetalning] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("betalt") === "1" ? "vantar" : null; }
+    catch { return null; }
+  });
   const [authLinkError, setAuthLinkError] = useState("");
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [delningar, setDelningar] = useState([]);
@@ -395,6 +402,90 @@ export default function KvarioApp() {
     })();
     return () => { alive = false; };
   }, [authReady, userId, store]);
+
+  /* ---------- Efter betalningen ----------
+
+     Stripe skickar tillbaka kunden med en gång, medan webhooken som
+     sätter plan till pro kommer för sig själv en stund senare. Utan
+     det här läste appen prenumerationen en enda gång — hann webhooken
+     inte fram stod det fortfarande "gratis" på skärmen för någon som
+     just betalat, och det är svårt att tänka sig ett sämre första
+     intryck av en betalprodukt.
+
+     Alltså frågas det om, tills planen vänder eller tiden är ute.
+     Vänder den inte är pengarna ändå dragna och webhooken kommer
+     senare, så beskedet säger det i stället för att påstå att något
+     gått fel. */
+  /* Städningen står för sig själv och sker vid första renderingen.
+     Låg den inuti pollningen nedan blev parametern kvar i adressen
+     så fort det inte fanns någon prenumeration att fråga om — och
+     då visades kvittot igen vid varje omladdning. */
+  useEffect(() => {
+    if (!betalning) return;
+    try {
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    } catch { /* saknar history i någon inbäddad vy */ }
+  }, []);
+
+  useEffect(() => {
+    if (betalning !== "vantar") return;
+
+    /* Utan konto finns ingen prenumeration att vänta på — appen körs
+       lokalt utan Supabase. Att stå kvar på "Bekräftar…" i evighet
+       vore sämre än att bara kvittera. */
+    if (!hasAuth) { setBetalning("klar"); return; }
+    if (!authReady || !userId) return;
+
+    let alive = true;
+    const BORJAN = Date.now();
+    const TAK = 25000;      // ger webhooken god marginal
+    const PAUS = 1500;
+
+    (async () => {
+      while (alive && Date.now() - BORJAN < TAK) {
+        try {
+          const s = await fetchSubscription(userId);
+          if (!alive) return;
+          if (s) setSub(s);
+          if (s?.plan === "pro") { setBetalning("klar"); return; }
+        } catch { /* nätet hackar — försök igen tills tiden är ute */ }
+        await new Promise((r) => setTimeout(r, PAUS));
+      }
+      if (alive) setBetalning("drojer");
+    })();
+
+    return () => { alive = false; };
+  }, [betalning, authReady, userId]);
+
+  /* ---------- Tillbaka till appen efter ett köp ----------
+
+     Kassan öppnas i systemets webbläsare, så mobilappen ser aldrig
+     ?betalt=1 — den låg kvar i bakgrunden hela tiden. Utan det här
+     stod det "gratis" kvar tills användaren råkade ladda om, trots
+     att betalningen gått igenom i en annan app.
+
+     Prenumerationen läses därför om varje gång appen kommer fram.
+     Det är en fråga mot databasen när någon växlar tillbaka, alltså
+     försumbart, och det håller planen aktuell även efter en
+     uppsägning eller en misslyckad förnyelse. */
+  useEffect(() => {
+    if (!hasAuth || !userId) return;
+
+    let alive = true;
+    let pagar = false;
+    const vakna = async () => {
+      if (document.visibilityState !== "visible" || pagar) return;
+      pagar = true;
+      try {
+        const s = await fetchSubscription(userId);
+        if (alive && s) setSub(s);
+      } catch { /* nätet kan vara borta i samma stund appen väcks */ }
+      pagar = false;
+    };
+
+    document.addEventListener("visibilitychange", vakna);
+    return () => { alive = false; document.removeEventListener("visibilitychange", vakna); };
+  }, [userId]);
 
   /* ---------- Spara ---------- */
   useEffect(() => {
@@ -964,6 +1055,46 @@ export default function KvarioApp() {
 
   if (!authReady) return <div className="kvar"><style>{CSS}</style><div className="wrap"><p className="empty">Ett ögonblick…</p></div></div>;
 
+  /* Tillbaka från Stripe utan session.
+
+     I mobilappen öppnas kassan i systemets webbläsare, eftersom
+     checkout.stripe.com ligger utanför appens egen adress. Betalningen
+     går bra, men returen landar i webbläsaren — där man aldrig loggat
+     in. Kunden möttes då av inloggningsrutan direkt efter att ha
+     betalat, vilket ser ut som att pengarna försvann.
+
+     Betalningen är genomförd oavsett: Stripe skickar bara hit efter
+     att den gått igenom, och webhooken aktiverar Pro utan att någon
+     behöver vara inloggad. Alltså kvitteras den här, i stället för att
+     be om lösenordet igen. */
+  if (hasAuth && !session && betalning) {
+    return (
+      <div className="kvar">
+        <style>{CSS}</style>
+        <div className="onboard">
+          <div className="obCard">
+            <div className="brand"><h1>Kvario</h1></div>
+            <h2 className="obTitle">Tack, betalningen gick igenom</h2>
+            <p className="obLead">
+              Pro är aktiverat på ditt konto och kvittot är på väg till din e-post.
+            </p>
+            {iNativApp ? (
+              <p className="obLead">Du kan stänga den här fliken och gå tillbaka till Kvario.</p>
+            ) : (
+              <p className="obLead">
+                Betalade du i Kvario-appen? Gå tillbaka dit — Pro finns redan där.
+                Annars loggar du in nedan.
+              </p>
+            )}
+            <button className="add wide" onClick={() => { setBetalning(null); setView("login"); }}>
+              Logga in
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (hasAuth && !session) {
     if (view === "landing" && !authLinkError)
       return (
@@ -1206,6 +1337,27 @@ export default function KvarioApp() {
             </button>
           ))}
         </nav>
+
+        {/* Kvittot efter en betalning. Ligger utanför flikarna så att
+            det syns oavsett var man råkade befinna sig när man kom
+            tillbaka från Stripe. */}
+        {betalning && (
+          <div className={`alert ${betalning === "klar" ? "godkand" : ""}`}>
+            <span className="bang">{betalning === "klar" ? "✓" : betalning === "vantar" ? "…" : "!"}</span>
+            <p>
+              {betalning === "klar" ? (
+                <><strong>Tack, betalningen gick igenom.</strong> Pro är aktiverat och kvittot ligger i din inkorg.</>
+              ) : betalning === "vantar" ? (
+                <><strong>Bekräftar betalningen…</strong> Det tar oftast bara några sekunder.</>
+              ) : (
+                <><strong>Betalningen är mottagen, men kontot har inte hunnit uppdateras.</strong> Pengarna är dragna och Pro aktiveras av sig självt inom kort — ladda om sidan om en stund. Står det kvar efter en kvart, hör av dig till info@kvario.se så löser vi det.</>
+              )}
+            </p>
+            {betalning !== "vantar" && (
+              <button className="linkbtn" onClick={() => setBetalning(null)} aria-label="Stäng meddelandet">Stäng</button>
+            )}
+          </div>
+        )}
 
         {/* ---------- ÖVERSIKT ---------- */}
         {flik === "oversikt" && (<>
