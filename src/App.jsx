@@ -1006,8 +1006,11 @@ export default function KvarioApp() {
           onAterbetala={demoAdmin
             ? () => window.alert("Demoläge — ingen riktig återbetalning görs. Logga in som en riktig admin för att testa på riktigt.")
             : utforAterbetalning}
+          /* De automatiska breven går redan — order, uppsägning,
+             återbetalning och de andra. Det som saknas är massutskick
+             till alla kunder på en gång, och det är inte byggt. */
           onUtskick={() => window.alert(
-            "Utskick kräver Resend, som väntar på din domän. Sätt RESEND_API_KEY och de övriga e-postvariablerna på servern när den är klar — se README."
+            "Massutskick till alla kunder är inte byggt än. De automatiska breven — orderbekräftelse, provperiod, uppsägning och återbetalning — skickas redan från info@kvario.se."
           )}
         />
       </div>
