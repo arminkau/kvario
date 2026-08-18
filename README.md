@@ -324,6 +324,16 @@ tjänsten.
 
 ## Databasen
 
+### Backup
+
+Se **[BACKUP.md](BACKUP.md)** — hur du tar en backup, läser en krypterad
+sådan och skriver tillbaka den, även från en dator som inte är din.
+
+Kort version: en schemalagd uppgift kör `verktyg/backup.mjs` varje söndag,
+och backupmapparna är sjuårsarkivet. Supabases egna backuper räcker inte —
+fria planen har inga alls, Pro sparar sju dagar, och filer i Storage ingår
+aldrig.
+
 ### Så når du den
 
 **Supabase Studio** på supabase.com är det vanliga sättet. Table Editor för att
