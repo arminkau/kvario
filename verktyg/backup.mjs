@@ -139,7 +139,7 @@ async function hamtaKvittofiler(kvitton, mapp) {
     if (!svar.ok) { saknade.push({ sokvag: k.sokvag, status: svar.status }); continue; }
     const mal = join(mapp, k.sokvag);
     await mkdir(dirname(mal), { recursive: true });
-    await writeFile(mal, Buffer.from(await svar.arrayBuffer()));
+    await skrivFil(mal, Buffer.from(await svar.arrayBuffer()));
     hamtade++;
   }
   return { hamtade, saknade };
@@ -190,8 +190,13 @@ if (LOSEN) {
     nyckelhärledning: "scrypt",
     salt: saltet.toString("base64"),
     format: "varje .kryptbin är [iv 12 byte][authTag 16 byte][chiffertext]",
-    las: "node verktyg/aterstall.mjs \"<den här mappen>\"",
+    las: "node verktyg/las-backup.mjs",
   }, null, 2));
+
+  /* Manifestet lämnas okrypterat med flit. Det innehåller radantal och
+     felmeddelanden, inga kunduppgifter — och den dagen något gått fel
+     vill man kunna se vilken backup som är hel utan att först leta rätt
+     på lösenordet. */
 }
 
 /* Egen IV per fil. Återanvänd IV med samma nyckel bryter GCM helt —
@@ -212,7 +217,7 @@ let kvitton = [];
 for (const namn of TABELLER) {
   try {
     const rader = await hamtaTabell(namn);
-    await writeFile(join(mapp, `${namn}.json`), JSON.stringify(rader, null, 2));
+    await skrivFil(join(mapp, `${namn}.json`), JSON.stringify(rader, null, 2));
     manifest.tabeller[namn] = rader.length;
     if (namn === "kvitton") kvitton = rader;
     console.log(`  ${namn}: ${rader.length} rader`);
@@ -224,7 +229,7 @@ for (const namn of TABELLER) {
 
 try {
   const anvandare = await hamtaAnvandare();
-  await writeFile(join(mapp, "auth_users.json"), JSON.stringify(anvandare, null, 2));
+  await skrivFil(join(mapp, "auth_users.json"), JSON.stringify(anvandare, null, 2));
   manifest.tabeller["auth.users"] = anvandare.length;
   console.log(`  auth.users: ${anvandare.length} konton`);
 } catch (e) {
