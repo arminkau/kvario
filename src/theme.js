@@ -222,6 +222,20 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
 
 .authLabel{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--mist);margin-bottom:14px}
 .authLabel input{font-size:14px;padding:11px 12px}
+
+/* Lösenordsfält med visa-knapp. Knappen ligger ovanpå fältets
+   högerkant, och fältet får plats åt den så att långa lösenord inte
+   löper in under den. */
+.losenordRad{position:relative;display:flex}
+.losenordRad input{flex:1;width:100%;padding-right:62px}
+.losenordOga{
+  position:absolute;right:5px;top:50%;transform:translateY(-50%);
+  font:inherit;font-size:12px;font-weight:600;
+  background:transparent;border:none;cursor:pointer;
+  color:var(--slate);padding:7px 9px;border-radius:3px;
+}
+.losenordOga:hover{color:var(--ink);background:var(--paper)}
+.losenordOga:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 .authError{font-size:12.5px;color:var(--warn);margin:-8px 0 12px}
 .authOr{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--mist);font-size:11.5px}
 .authOr::before,.authOr::after{content:'';flex:1;height:1px;background:var(--line)}
@@ -532,6 +546,9 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--brass);out
      bär valen som ändrar hela beräkningen — avgiftsläge och
      momsperiod — och är de sista man vill träffa fel på. */
   .sb{min-height:38px}
+  /* Visa-knappen sitter ovanpå ett fält man ofta träffar med tummen */
+  .losenordOga{min-height:38px;padding:9px 12px}
+  .losenordRad input{padding-right:70px}
 }
 
 @media (max-width:560px){

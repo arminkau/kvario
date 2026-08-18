@@ -3,6 +3,7 @@ import { makeStorage } from "./storage";
 import { startCheckout as apiCheckout, adminAterbetala, openPortal } from "./billing";
 import { supabase, hasAuth, signOut, fetchSubscription, fetchAdmin, sattNyttLosenord, bytEpost, fetchOrdrar, bevakaSession, sessionLagring, iNativApp, googleGarIAppen, loginViaToken } from "./auth";
 import Login from "./Login.jsx";
+import Losenordsfalt from "./Losenordsfalt.jsx";
 import { AVDRAG, matchAvdrag, VERDICT } from "./avdrag";
 import { CSS } from "./theme";
 import { MARKE, TAGLINE, MG, STAPEL } from "./texter";
@@ -103,13 +104,14 @@ function NyttLosenordVy({ onKlart }) {
         <div className="obCard">
           <div className="brand"><h1>Kvario</h1></div>
           <h2 className="obTitle">Sätt ett nytt lösenord</h2>
-          <label className="authLabel">
-            Lösenord
-            <input type="password" value={losenord} placeholder="Minst 6 tecken"
-                   onChange={(e) => setLosenord(e.target.value)}
-                   onKeyDown={(e) => e.key === "Enter" && submit()}
-                   autoComplete="new-password" autoFocus />
-          </label>
+          <Losenordsfalt
+            id="nyttLosenord"
+            varde={losenord}
+            satt={setLosenord}
+            placeholder="Minst 6 tecken"
+            autoComplete="new-password"
+            onEnter={submit}
+          />
           {error && <p className="authError">{error}</p>}
           <button className="add wide" onClick={submit} disabled={status === "sending"}>
             {status === "sending" ? "Sparar…" : "Spara lösenord"}
@@ -2215,8 +2217,15 @@ export default function KvarioApp() {
             <div className="lagringVal">
               <div className="eyebrow" style={{ marginBottom: 10 }}>Byt lösenord</div>
               <div className="form" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
-                <input className="grow" type="password" placeholder="Minst 6 tecken" value={nyttLosen}
-                       onChange={(e) => setNyttLosen(e.target.value)} autoComplete="new-password" />
+                <Losenordsfalt
+                  naken
+                  id="bytLosenord"
+                  varde={nyttLosen}
+                  satt={setNyttLosen}
+                  placeholder="Minst 6 tecken"
+                  autoComplete="new-password"
+                  onEnter={sparaNyttLosen}
+                />
                 <button className="add" onClick={sparaNyttLosen}>Byt lösenord</button>
               </div>
             </div>

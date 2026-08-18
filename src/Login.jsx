@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { signInWithGoogle, signInWithPassword, signUpWithPassword, skickaLosenordsAterstallning } from "./auth";
 import { TESTKONTON } from "./testdata";
+import Losenordsfalt from "./Losenordsfalt.jsx";
 
 export default function Login({ onBack, onTestkonto }) {
   const [lage, setLage] = useState("in"); // in | upp
@@ -175,17 +176,14 @@ export default function Login({ onBack, onTestkonto }) {
           />
         </label>
 
-        <label className="authLabel">
-          Lösenord
-          <input
-            type="password"
-            value={losenord}
-            placeholder={lage === "upp" ? "Minst 6 tecken" : "Ditt lösenord"}
-            onChange={(e) => setLosenord(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            autoComplete={lage === "upp" ? "new-password" : "current-password"}
-          />
-        </label>
+        <Losenordsfalt
+          id="losenord"
+          varde={losenord}
+          satt={setLosenord}
+          placeholder={lage === "upp" ? "Minst 6 tecken" : "Ditt lösenord"}
+          autoComplete={lage === "upp" ? "new-password" : "current-password"}
+          onEnter={submit}
+        />
 
         {error && <p className="authError">{error}</p>}
 
