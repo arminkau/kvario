@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node kontroll.mjs && vite build",
+    "build": "node kontroll.mjs && node prov.mjs && vite build",
     "preview": "vite preview",
-    "kontroll": "node kontroll.mjs",
+    "kontroll": "node kontroll.mjs && node prov.mjs",
     "ikoner": "node verktyg/gor-ikoner.mjs && node verktyg/gor-android-ikoner.mjs && node verktyg/gor-ios-ikon.mjs",
     "app:synka": "npm run build && npx cap sync",
     "app:android": "npm run app:synka && npx cap open android",
-    "app:ios": "npm run app:synka && npx cap open ios"
+    "app:ios": "npm run app:synka && npx cap open ios",
+    "prov": "node prov.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
