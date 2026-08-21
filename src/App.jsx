@@ -1006,6 +1006,19 @@ export default function KvarioApp() {
 
   /* ---------- Kontouppgifter ---------- */
   const [ordrar, setOrdrar] = useState([]);
+
+  /* Dagar kvar av ångerfristen på den senaste betalningen. null när
+     ingen betalning finns, 0 när fristen gått ut.
+
+     Räknas på hela dygn och avrundas uppåt: den som köpte i går har
+     tretton dagar kvar, inte 12,6. Ett avrundat nedåt hade tagit en
+     dag av kunden i en text om just deras rättigheter. */
+  const angerfristKvar = useMemo(() => {
+    const senaste = ordrar[0];
+    if (!senaste?.betald_at) return null;
+    const gatt = (Date.now() - new Date(senaste.betald_at).getTime()) / 86400000;
+    return Math.max(0, Math.ceil(14 - gatt));
+  }, [ordrar]);
   const [nyEpost, setNyEpost] = useState("");
   const [nyttLosen, setNyttLosen] = useState("");
   const [kontoBesked, setKontoBesked] = useState("");
@@ -2450,8 +2463,32 @@ export default function KvarioApp() {
                   </p>
                 ) : (
                   <>
+                    {/* Rutan visas så länge det finns en betalning, och det
+                        är avsiktligt — en kund ska kunna be om pengarna
+                        tillbaka även efter fristen. Men texten sade "du har
+                        14 dagars ångerrätt" oavsett hur gammalt köpet var,
+                        vilket lovade en rättighet som inte längre fanns.
+
+                        Begäran registreras i båda fallen. Skillnaden är att
+                        den inom fristen flaggas för automatiskt godkännande,
+                        efter den för manuell bedömning. */}
                     <p className="dataText">
-                      Du har 14 dagars ångerrätt från köpet. Begäran gäller din senaste betalning.
+                      {angerfristKvar === null ? (
+                        <>Begäran gäller din senaste betalning.</>
+                      ) : angerfristKvar > 0 ? (
+                        <>
+                          Du har <b>{angerfristKvar} {angerfristKvar === 1 ? "dag" : "dagar"}</b> kvar
+                          av din ångerrätt. Inom fristen godkänns begäran normalt automatiskt.
+                          Den gäller din senaste betalning.
+                        </>
+                      ) : (
+                        <>
+                          De 14 dagarnas ångerrätt har passerat, så någon rätt till
+                          återbetalning finns inte längre. Du kan ändå skicka en förfrågan —
+                          vi läser alla och hör av oss. Vill du bara sluta betala säger du
+                          upp prenumerationen i stället, så dras inget mer.
+                        </>
+                      )}
                     </p>
                     {/* Höjden sätts av innehållet: nollställs först, så
                         att fältet krymper igen när text raderas — utan
