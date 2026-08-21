@@ -17,10 +17,13 @@ alter table public.user_state enable row level security;
 -- Row Level Security: databasen släpper bara igenom din egen rad.
 -- Även om någon får tag i din publika API-nyckel kommer de inte
 -- åt någon annans data. Detta är varför nyckeln får ligga i webbläsaren.
+drop policy if exists "läs egen data" on public.user_state;
 create policy "läs egen data" on public.user_state
   for select using (auth.uid() = user_id);
+drop policy if exists "skriv egen data" on public.user_state;
 create policy "skriv egen data" on public.user_state
   for insert with check (auth.uid() = user_id);
+drop policy if exists "uppdatera egen data" on public.user_state;
 create policy "uppdatera egen data" on public.user_state
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
@@ -73,6 +76,7 @@ alter table public.subscriptions enable row level security;
 
 -- Bara läsning. Inga insert- eller update-policyer för användaren.
 -- Servern använder service_role-nyckeln som går förbi RLS.
+drop policy if exists "läs egen prenumeration" on public.subscriptions;
 create policy "läs egen prenumeration" on public.subscriptions
   for select using (auth.uid() = user_id);
 
@@ -116,8 +120,10 @@ create table if not exists public.terms_acceptance (
 
 alter table public.terms_acceptance enable row level security;
 
+drop policy if exists "läs egna godkännanden" on public.terms_acceptance;
 create policy "läs egna godkännanden" on public.terms_acceptance
   for select using (auth.uid() = user_id);
+drop policy if exists "spara eget godkännande" on public.terms_acceptance;
 create policy "spara eget godkännande" on public.terms_acceptance
   for insert with check (auth.uid() = user_id);
 
@@ -193,6 +199,7 @@ create table if not exists public.orders (
 alter table public.orders enable row level security;
 
 -- Användaren får läsa sina egna ordrar. Ingen får skriva från klienten.
+drop policy if exists "läs egna ordrar" on public.orders;
 create policy "läs egna ordrar" on public.orders
   for select using (auth.uid() = user_id);
 
@@ -221,6 +228,7 @@ create table if not exists public.roller (
 
 alter table public.roller enable row level security;
 
+drop policy if exists "läs egen roll" on public.roller;
 create policy "läs egen roll" on public.roller
   for select using (auth.uid() = user_id);
 
@@ -231,10 +239,13 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- Admin får läsa allt. Vanliga användare bara sitt eget.
+drop policy if exists "admin läser alla ordrar" on public.orders;
 create policy "admin läser alla ordrar" on public.orders
   for select using (public.ar_admin());
+drop policy if exists "admin läser alla prenumerationer" on public.subscriptions;
 create policy "admin läser alla prenumerationer" on public.subscriptions
   for select using (public.ar_admin());
+drop policy if exists "admin läser alla roller" on public.roller;
 create policy "admin läser alla roller" on public.roller
   for select using (public.ar_admin());
 
@@ -263,8 +274,10 @@ create table if not exists public.aterbetalningar (
 
 alter table public.aterbetalningar enable row level security;
 
+drop policy if exists "läs egna återbetalningar" on public.aterbetalningar;
 create policy "läs egna återbetalningar" on public.aterbetalningar
   for select using (auth.uid() = user_id or public.ar_admin());
+drop policy if exists "begär egen återbetalning" on public.aterbetalningar;
 create policy "begär egen återbetalning" on public.aterbetalningar
   for insert with check (auth.uid() = user_id);
 
@@ -315,10 +328,13 @@ create table if not exists public.delade_rapporter (
 
 alter table public.delade_rapporter enable row level security;
 
+drop policy if exists "läs egna delade rapporter" on public.delade_rapporter;
 create policy "läs egna delade rapporter" on public.delade_rapporter
   for select using (auth.uid() = user_id);
+drop policy if exists "skapa egen delad rapport" on public.delade_rapporter;
 create policy "skapa egen delad rapport" on public.delade_rapporter
   for insert with check (auth.uid() = user_id);
+drop policy if exists "återkalla egen delad rapport" on public.delade_rapporter;
 create policy "återkalla egen delad rapport" on public.delade_rapporter
   for update using (auth.uid() = user_id);
 
@@ -365,10 +381,13 @@ create table if not exists public.kvitton (
 
 alter table public.kvitton enable row level security;
 
+drop policy if exists "läs egna kvitton" on public.kvitton;
 create policy "läs egna kvitton" on public.kvitton
   for select using (auth.uid() = user_id);
+drop policy if exists "spara eget kvitto" on public.kvitton;
 create policy "spara eget kvitto" on public.kvitton
   for insert with check (auth.uid() = user_id);
+drop policy if exists "radera eget kvitto" on public.kvitton;
 create policy "radera eget kvitto" on public.kvitton
   for delete using (auth.uid() = user_id);
 
@@ -379,14 +398,17 @@ create index if not exists kvitton_user_kostnad_idx
 -- med användarens id, och policyerna nedan låter bara ägaren röra
 -- sin egen mapp. Utan dem skulle vem som helst med ett giltigt konto
 -- kunna lista andras kvitton.
+drop policy if exists "läs egna filer" on storage.objects;
 create policy "läs egna filer" on storage.objects
   for select using (
     bucket_id = 'kvitton' and (storage.foldername(name))[1] = auth.uid()::text
   );
+drop policy if exists "ladda upp egna filer" on storage.objects;
 create policy "ladda upp egna filer" on storage.objects
   for insert with check (
     bucket_id = 'kvitton' and (storage.foldername(name))[1] = auth.uid()::text
   );
+drop policy if exists "radera egna filer" on storage.objects;
 create policy "radera egna filer" on storage.objects
   for delete using (
     bucket_id = 'kvitton' and (storage.foldername(name))[1] = auth.uid()::text
