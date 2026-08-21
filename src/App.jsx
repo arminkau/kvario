@@ -648,6 +648,30 @@ export default function KvarioApp() {
     }
   };
 
+  /* Massutskicket går via servern, som har adresserna. Panelen har dem
+     inte och ska inte ha dem: en lista med alla kunders e-post i
+     webbläsaren är en läcka som väntar på att hända.
+
+     Returnerar ett resultat i stället för att larma själv, så att
+     panelen kan visa det på plats. */
+  const skickaUtskick = async ({ mottagare, amne, text }) => {
+    try {
+      const r = await fetch(`${import.meta.env.VITE_API_URL}/admin/utskick`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ mottagare, amne, text }),
+      });
+      const data = await r.json();
+      if (!r.ok) return { ok: false, fel: data.error || `Servern svarade ${r.status}` };
+      return { ok: true, ...data };
+    } catch (e) {
+      return { ok: false, fel: e.message || "Ingen kontakt med servern" };
+    }
+  };
+
   /* ---------- Räkna ---------- */
   const d = useMemo(() => {
     const used = paidOnly ? invoices.filter((i) => i.paid) : invoices;
@@ -1165,12 +1189,9 @@ export default function KvarioApp() {
           onAterbetala={demoAdmin
             ? () => window.alert("Demoläge — ingen riktig återbetalning görs. Logga in som en riktig admin för att testa på riktigt.")
             : utforAterbetalning}
-          /* De automatiska breven går redan — order, uppsägning,
-             återbetalning och de andra. Det som saknas är massutskick
-             till alla kunder på en gång, och det är inte byggt. */
-          onUtskick={() => window.alert(
-            "Massutskick till alla kunder är inte byggt än. De automatiska breven — orderbekräftelse, provperiod, uppsägning och återbetalning — skickas redan från info@kvario.se."
-          )}
+          onUtskick={demoAdmin
+            ? async () => ({ ok: false, fel: "Demoläge — inget skickas. Logga in som riktig admin." })
+            : skickaUtskick}
         />
       </div>
     );

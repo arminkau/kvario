@@ -468,3 +468,39 @@ export function aterbetalning({ ordernummer, belopp, helt }) {
     }),
   };
 }
+
+/* ---------- 12. Massutskick från adminpanelen ----------
+
+   Ett fritt skrivet brev till en grupp användare. Texten kommer från
+   panelen, alltså från en människa, och renderas som stycken — inte
+   som HTML. Skulle någon klistra in markup ska den visas som text och
+   inte tolkas, och fly() ser till det.
+
+   Avregistreringslänken är inte valfri. Ett massutskick utan ett sätt
+   att slippa fler är inte tillåtet, och länken måste fungera utan
+   inloggning: den som vill bort ska inte behöva minnas ett lösenord
+   för att komma bort. */
+export function utskick({ amne, text, avregistreraUrl }) {
+  const stycken = String(text).split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+
+  return {
+    amne,
+    html: brev({
+      rubrik: amne,
+      kropp: stycken.map((s) =>
+        `<p style="margin:0 0 18px;font-size:13.5px;line-height:1.7;color:#4A5D68">${
+          fly(s).replace(/\n/g, "<br>")
+        }</p>`).join(""),
+      fot: avregistreraUrl
+        ? `Vill du inte ha fler sådana här brev? <a href="${fly(avregistreraUrl)}" style="color:#8698A1">Avregistrera dig här</a>. Brev om din order och din prenumeration får du fortfarande.`
+        : null,
+    }),
+    text: textbrev({
+      rubrik: amne,
+      stycken,
+      fot: avregistreraUrl
+        ? `Vill du inte ha fler sådana här brev? Avregistrera dig här: ${avregistreraUrl}\nBrev om din order och din prenumeration får du fortfarande.`
+        : null,
+    }),
+  };
+}

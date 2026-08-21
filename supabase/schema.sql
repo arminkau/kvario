@@ -59,6 +59,16 @@ alter table public.subscriptions
 alter table public.subscriptions
   add column if not exists uppsagd_at timestamptz;
 
+-- Avregistrerad från utskick. Varje massutskick måste innehålla ett
+-- sätt att slippa fler, och länken ska fungera utan inloggning — den
+-- som vill bort ska inte behöva minnas ett lösenord för att komma bort.
+--
+-- Opt-out, inte opt-in: kolumnen styr servicemeddelanden och den som
+-- inte gjort något får dem. Rena marknadsföringsutskick kräver samtycke
+-- och ska inte skickas med stöd av den här kolumnen ensam.
+alter table public.subscriptions
+  add column if not exists utskick_av timestamptz;
+
 alter table public.subscriptions enable row level security;
 
 -- Bara läsning. Inga insert- eller update-policyer för användaren.

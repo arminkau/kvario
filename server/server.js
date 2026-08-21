@@ -16,12 +16,13 @@
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   skickaOrderbekraftelse, skickaValkommen, skickaProvperiodSlutar,
   skickaBetalningMisslyckades, skickaUppsagd, skickaAterbetalning,
   skickaProvbrev, provaEpost, PROVBREV,
   skickaAdminNyttKonto, skickaAdminNyPrenumeration, skickaAdminAterbetalning,
-  skickaAdminUppsagd, skickaAdminBetalningsfel,
+  skickaAdminUppsagd, skickaAdminBetalningsfel, skickaUtskick,
 } from "./epost.js";
 import { skapaOrder, markeraAterbetald, hamtaOrder, hamtaKund, sattStripeKund, sattPlan, db, dbSaknar } from "./db.js";
 
@@ -735,6 +736,146 @@ app.get("/admin/ordrar", async (req, res) => {
     .from("orders").select("*").order("betald_at", { ascending: false }).limit(100);
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+/* ---------- Massutskick ----------
+
+   Avregistreringslänken måste fungera utan inloggning: den som vill
+   slippa fler brev ska inte behöva minnas ett lösenord för att komma
+   bort. Samtidigt får länken inte gå att gissa — annars kan vem som
+   helst avregistrera någon annan.
+
+   Lösningen är en signatur i länken i stället för ett sparat token.
+   Den räknas fram ur användarens id och en hemlighet servern redan
+   har, så det finns ingen tabell att hålla i takt och inget som kan
+   bli inaktuellt.
+
+   timingSafeEqual och inte === : en vanlig jämförelse avbryter vid
+   första felaktiga tecknet, och den skillnaden i tid går att mäta sig
+   fram till rätt signatur med. */
+function utskickSignatur(userId) {
+  const hemlighet = process.env.ADMIN_TOKEN || process.env.SUPABASE_HOOK_SECRET || "";
+  return createHmac("sha256", hemlighet).update(`utskick:${userId}`).digest("hex").slice(0, 32);
+}
+
+function signaturStammer(userId, signatur) {
+  const vantad = Buffer.from(utskickSignatur(userId));
+  const fick = Buffer.from(String(signatur || ""));
+  return vantad.length === fick.length && timingSafeEqual(vantad, fick);
+}
+
+const avregistreraUrlFor = (userId) =>
+  `${process.env.APP_URL}/avregistrera?u=${userId}&s=${utskickSignatur(userId)}`;
+
+/* Svarar med en sida och inte med JSON — det här är en länk någon
+   klickar på i sitt e-postprogram, inte ett API-anrop. */
+app.get("/avregistrera", async (req, res) => {
+  const { u, s } = req.query;
+  const sida = (rubrik, text) => res.status(200).send(
+    `<!doctype html><html lang="sv"><head><meta charset="utf-8">
+     <meta name="viewport" content="width=device-width,initial-scale=1">
+     <title>${rubrik}</title></head>
+     <body style="margin:0;padding:48px 24px;background:#E4EBE7;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#12211C">
+     <div style="max-width:460px;margin:0 auto;background:#F7FAF8;border-radius:6px;padding:36px 32px">
+     <h1 style="margin:0 0 14px;font-size:19px">${rubrik}</h1>
+     <p style="margin:0;font-size:14px;line-height:1.7;color:#4A5D68">${text}</p>
+     <p style="margin:22px 0 0"><a href="${process.env.APP_URL}" style="color:#8A6420">Till Kvario</a></p>
+     </div></body></html>`);
+
+  if (!u || !signaturStammer(u, s)) {
+    return sida("Länken gäller inte", "Den här avregistreringslänken är felaktig eller ofullständig. Svara på brevet du fick så tar vi bort dig för hand.");
+  }
+  if (!db) return sida("Något gick fel", "Vi kunde inte nå databasen just nu. Försök igen om en stund.");
+
+  try {
+    await db.from("subscriptions")
+      .update({ utskick_av: new Date().toISOString() })
+      .eq("user_id", u);
+  } catch {
+    return sida("Något gick fel", "Vi kunde inte spara ditt val. Svara på brevet så tar vi bort dig för hand.");
+  }
+  /* Tydligt om vad som faktiskt slutar komma. "Du är avregistrerad"
+     utan mer får folk att tro att kvitton och orderbekräftelser också
+     upphör — och de måste fortsätta gå ut. */
+  return sida("Klart, du är avregistrerad",
+    "Du får inga fler nyhetsbrev eller allmänna utskick från oss. Brev som rör din egen order, din prenumeration och din betalning fortsätter komma — dem är vi skyldiga att skicka.");
+});
+
+/* Grupperna motsvarar valen i adminpanelen. */
+async function utskickMottagare(grupp) {
+  const { data: rader, error } = await db
+    .from("subscriptions")
+    .select("user_id, plan, trial_start, utskick_av");
+  if (error) throw new Error(error.message);
+
+  const nu = Date.now();
+  const provAktiv = (r) => r.trial_start && (nu - new Date(r.trial_start).getTime()) / 86400000 < 14;
+
+  const valda = (rader || []).filter((r) => {
+    // Avregistrerade får aldrig massutskick, oavsett vald grupp.
+    if (r.utskick_av) return false;
+    if (grupp === "pro") return r.plan === "pro";
+    if (grupp === "trial") return r.plan !== "pro" && provAktiv(r);
+    if (grupp === "utgangen") return r.plan !== "pro" && r.trial_start && !provAktiv(r);
+    return true;
+  });
+
+  /* Adresserna bor i auth.users. En rad utan konto kan finnas kvar om
+     kontot raderats, och den ska hoppas över tyst. */
+  const med = [];
+  for (const r of valda) {
+    const { data } = await db.auth.admin.getUserById(r.user_id);
+    const epost = data?.user?.email;
+    if (epost) med.push({ userId: r.user_id, epost });
+  }
+  return med;
+}
+
+const UTSKICK_TAK = 200;
+
+app.post("/admin/utskick", express.json(), async (req, res) => {
+  if (!(await kravAdmin(req, res))) return;
+  if (!db) return res.status(503).json({ error: `Databasen saknas: ${dbSaknar.join(", ")}` });
+
+  const { mottagare = "alla", amne, text } = req.body || {};
+  if (!amne?.trim() || !text?.trim()) {
+    return res.status(400).json({ error: "Ämne och meddelande måste fyllas i" });
+  }
+
+  let lista;
+  try { lista = await utskickMottagare(mottagare); }
+  catch (e) { return res.status(500).json({ error: e.message }); }
+
+  if (!lista.length) return res.json({ mottagare: 0, skickade: 0, misslyckade: 0 });
+
+  /* Taket finns för att svaret ska hinna fram. Vid fler mottagare
+     behöver utskicket köras i bakgrunden med en kö, och det är inte
+     byggt — bättre att säga ifrån än att låta anropet timeouta mitt i
+     och lämna halva listan skickad utan att någon vet vilka. */
+  if (lista.length > UTSKICK_TAK) {
+    return res.status(400).json({
+      error: `${lista.length} mottagare är fler än vad utskicket klarar i ett svep (${UTSKICK_TAK}). Hör av dig så bygger vi kö.`,
+    });
+  }
+
+  let skickade = 0;
+  const misslyckade = [];
+  for (const m of lista) {
+    const svar = await skickaUtskick(m.epost, {
+      amne: amne.trim(),
+      text: text.trim(),
+      avregistreraUrl: avregistreraUrlFor(m.userId),
+    });
+    if (svar.skickad) skickade++;
+    else misslyckade.push(m.epost);
+    /* Paus mellan breven. Strato stryper avsändare som kommer med
+       hundra meddelanden på en sekund, och då hamnar resten i kö eller
+       i skräpposten hos mottagarna. */
+    await new Promise((r) => setTimeout(r, 400));
+  }
+
+  console.log(`Utskick "${amne}" till ${mottagare}: ${skickade} av ${lista.length} skickade`);
+  res.json({ mottagare: lista.length, skickade, misslyckade: misslyckade.length, adresser: misslyckade });
 });
 
 const PORT = process.env.PORT || 3000;

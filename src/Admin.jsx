@@ -39,6 +39,13 @@ const FLIKAR = [
   ["utskick", "Utskick"],
 ];
 
+const MOTTAGARNAMN = {
+  alla: "Alla konton",
+  pro: "Endast betalande",
+  trial: "Pågående provperiod",
+  utgangen: "Utgången provperiod",
+};
+
 const MANADER = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
 
 function Nyckeltal({ etikett, varde, not, ton }) {
@@ -56,6 +63,13 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
   const [sok, setSok] = useState("");
   const [utskick, setUtskick] = useState({ mottagare: "alla", amne: "", text: "" });
   const [bekraftar, setBekraftar] = useState(null);
+  /* Utskicket har tre lägen: obekräftat, skickar, och ett svar att
+     visa. Ett massutskick går inte att ångra, så steget emellan är
+     inte artighet utan en spärr. */
+  const [utskickBekraftar, setUtskickBekraftar] = useState(false);
+  const [utskickStatus, setUtskickStatus] = useState("idle");
+  const [utskickSvar, setUtskickSvar] = useState(null);
+
 
   const { kunder = [], ordrar = [], aterbetalningar = [] } = data;
 
@@ -121,6 +135,18 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
     return { manader, max, mrr, utgar, utgangna, aterbetalt, brutto,
              andelAterbetalt: brutto ? (aterbetalt / brutto) * 100 : 0 };
   }, [ordrar, kunder]);
+
+  /* Måste stå efter stat och siffror — de är const, och att läsa dem
+     tidigare kastar i stället för att ge undefined.
+
+     Räknar alla fyra grupperna. Knappen räknade förut bara tre:
+     "utgangen" föll igenom och visade provperiodsantalet i stället,
+     alltså fel siffra i just den grupp man är mest försiktig med. */
+  const antalMottagare =
+    utskick.mottagare === "pro" ? stat.pro
+    : utskick.mottagare === "trial" ? stat.trial
+    : utskick.mottagare === "utgangen" ? siffror.utgangna.length
+    : kunder.length;
 
   const exportera = () => {
     const rader = [["Ordernummer", "Namn", "E-post", "Datum", "Brutto", "Moms", "Aterbetalt", "Status"]];
@@ -400,10 +426,58 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
               <textarea rows="7" value={utskick.text} onChange={(e) => setUtskick({ ...utskick, text: e.target.value })}
                         placeholder="Skriv ditt meddelande…" />
             </label>
-            <button className="add" disabled={!utskick.amne || !utskick.text}
-                    onClick={() => onUtskick(utskick)}>
-              Skicka till {utskick.mottagare === "alla" ? kunder.length : utskick.mottagare === "pro" ? stat.pro : stat.trial} mottagare
-            </button>
+            {/* Två steg med flit. Ett massutskick går inte att ångra —
+                breven ligger i mottagarnas inkorgar en sekund senare —
+                och ett felklick på en knapp som säger "Skicka" är en
+                dyr sekund. Första klicket visar vad som ska hända. */}
+            {!utskickBekraftar ? (
+              <button className="add" disabled={!utskick.amne || !utskick.text || utskickStatus === "skickar"}
+                      onClick={() => { setUtskickSvar(null); setUtskickBekraftar(true); }}>
+                Förhandsgranska utskicket
+              </button>
+            ) : (
+              <div className="utskickBekraft">
+                <p className="adminHjalp">
+                  <b>{utskick.amne}</b> går till <b>{antalMottagare} mottagare</b> i gruppen
+                  "{MOTTAGARNAMN[utskick.mottagare]}". Avregistrerade räknas bort av servern,
+                  så antalet kan bli lägre. Det går inte att ångra.
+                </p>
+                <div className="dataKnappar">
+                  <button className="add" disabled={utskickStatus === "skickar"}
+                          onClick={async () => {
+                            setUtskickStatus("skickar");
+                            const svar = await onUtskick(utskick);
+                            setUtskickSvar(svar);
+                            setUtskickStatus("idle");
+                            setUtskickBekraftar(false);
+                            if (svar?.ok) setUtskick({ ...utskick, amne: "", text: "" });
+                          }}>
+                    {utskickStatus === "skickar" ? "Skickar…" : "Ja, skicka nu"}
+                  </button>
+                  <button className="linkbtn" onClick={() => setUtskickBekraftar(false)}
+                          disabled={utskickStatus === "skickar"}>Avbryt</button>
+                </div>
+              </div>
+            )}
+
+            {utskickSvar && (
+              <div className={`alert ${utskickSvar.ok ? "godkand" : ""}`}>
+                <span className="bang">{utskickSvar.ok ? "✓" : "!"}</span>
+                <p>
+                  {utskickSvar.ok ? (
+                    <>
+                      <strong>{utskickSvar.skickade} av {utskickSvar.mottagare} brev skickade.</strong>
+                      {utskickSvar.misslyckade > 0 && <>
+                        {" "}{utskickSvar.misslyckade} gick inte fram
+                        {utskickSvar.adresser?.length > 0 && <>: {utskickSvar.adresser.join(", ")}</>}.
+                      </>}
+                    </>
+                  ) : (
+                    <><strong>Utskicket gick inte igenom.</strong> {utskickSvar.fel}</>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

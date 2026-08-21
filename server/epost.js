@@ -328,3 +328,12 @@ export const skickaProvbrev = (epost, sort) => {
   if (!bygg) return Promise.resolve({ skickad: false, orsak: `okänd brevsort: ${sort}` });
   return skicka(epost, bygg());
 };
+
+/* ---------- Massutskick ----------
+   Ett brev per mottagare, inte ett med alla i hemlig kopia. Två skäl:
+   avregistreringslänken är personlig och måste skilja sig åt mellan
+   mottagarna, och en bcc-lista med hundra adresser ser ut som
+   skräppost för filtren.
+
+   Anropas med paus emellan från servern — se /admin/utskick. */
+export const skickaUtskick = (till, data) => skicka(till, BREV.utskick(data));
