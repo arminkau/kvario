@@ -46,6 +46,19 @@ create table if not exists public.subscriptions (
 alter table public.subscriptions
   add column if not exists paminnelse_skickad timestamptz;
 
+-- När kunden sade upp prenumerationen. Stripe raderar den inte då —
+-- den fortsätter vara aktiv med cancel_at_period_end satt, och
+-- customer.subscription.deleted kommer först när perioden löper ut,
+-- alltså upp till en månad senare.
+--
+-- Utan den här kolumnen fanns uppsägningen ingenstans mellan de två
+-- tidpunkterna: kunden såg "förnyas 18 september" på sin kontosida
+-- trots att den var uppsagd, och adminpanelen visade samma sak.
+--
+-- Nollställs om kunden ångrar sig och återaktiverar hos Stripe.
+alter table public.subscriptions
+  add column if not exists uppsagd_at timestamptz;
+
 alter table public.subscriptions enable row level security;
 
 -- Bara läsning. Inga insert- eller update-policyer för användaren.
@@ -263,10 +276,12 @@ returns table (
   plan text,
   trial_start timestamptz,
   current_period_end timestamptz,
-  stripe_customer_id text
+  stripe_customer_id text,
+  uppsagd_at timestamptz
 )
 language sql stable security definer set search_path = public as $$
-  select s.user_id, u.email, s.plan, s.trial_start, s.current_period_end, s.stripe_customer_id
+  select s.user_id, u.email, s.plan, s.trial_start, s.current_period_end,
+         s.stripe_customer_id, s.uppsagd_at
   from public.subscriptions s
   join auth.users u on u.id = s.user_id
   where public.ar_admin();

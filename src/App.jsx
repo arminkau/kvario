@@ -129,6 +129,21 @@ function NyttLosenordVy({ onKlart }) {
 const kr = (n) => Math.round(n || 0).toLocaleString("sv-SE").replace(/\u00a0/g, " ");
 const pct = (n) => (n * 100).toFixed(1).replace(".", ",");
 
+/* Skattesiffror avrundas till hela kronor \u2014 ingen beh\u00f6ver se \u00f6ren p\u00e5
+   ett \u00f6verskott. Men ett pris kunden faktiskt betalat m\u00e5ste st\u00e4mma p\u00e5
+   \u00f6ret: 9,90 kr visades som "10 kr", och kunden som j\u00e4mf\u00f6rde med sitt
+   kontoutdrag hittade inte samma siffra.
+
+   Tar \u00f6re in, till skillnad fr\u00e5n kr() ovan som tar kronor. */
+const exaktKr = (ore) => {
+  const belopp = (ore || 0) / 100;
+  const harOre = Math.round(ore || 0) % 100 !== 0;
+  return belopp.toLocaleString("sv-SE", {
+    minimumFractionDigits: harOre ? 2 : 0,
+    maximumFractionDigits: harOre ? 2 : 0,
+  }).replace(/\u00a0/g, " ");
+};
+
 /* \u00c5rtalet tas bort n\u00e4r posten h\u00f6r till innevarande \u00e5r \u2014 det \u00e4r
    underf\u00f6rst\u00e5tt, och raderna blir l\u00e4ttare att skumma utan det. */
 const visaDatum = (iso) => {
@@ -1308,6 +1323,14 @@ export default function KvarioApp() {
             ) : (
               <button className="upgrade" onClick={() => setShowPaywall(true)}>Uppgradera</button>
             )}
+            {/* Adressen syntes bara i fotnoten och som tooltip på
+                utloggningsknappen. Med två konton — ett med lösenord och
+                ett via Google — går det att logga in på fel och tro att
+                all data försvunnit. Den kostar en rad att visa och
+                besparar någon den upptäckten. */}
+            {hasAuth && session && (
+              <span className="inloggadSom" title={session.user.email}>{session.user.email}</span>
+            )}
             {hasAuth && session && (
               <button className="linkbtn" onClick={signOut} title={session.user.email}>Logga ut</button>
             )}
@@ -2330,16 +2353,33 @@ export default function KvarioApp() {
             <div className="panelHead">
               <h2>Prenumeration</h2>
               <span className="eyebrow">
-                {subscribed ? "Kvario Pro" : trial.active ? `Provperiod · ${trial.daysLeft} ${trial.daysLeft === 1 ? "dag" : "dagar"} kvar` : "Gratis"}
+                {subscribed
+                  ? (sub?.uppsagd_at ? "Kvario Pro · uppsagd" : "Kvario Pro")
+                  : trial.active ? `Provperiod · ${trial.daysLeft} ${trial.daysLeft === 1 ? "dag" : "dagar"} kvar` : "Gratis"}
               </span>
             </div>
 
             {subscribed ? (
               <>
+                {/* Uppsagd men fortfarande aktiv fram till periodslutet.
+                    Stod det "förnyas 18 september" på en uppsagd
+                    prenumeration trodde kunden att uppsägningen inte gått
+                    igenom — och sade upp igen, eller hörde av sig. */}
                 <p className="dataText">
-                  Du har Kvario Pro{sub?.current_period_end && <> och den förnyas {new Date(sub.current_period_end).toLocaleDateString("sv-SE")}</>}.
-                  Uppsägning, byte mellan månad och år, kortbyte och alla kvitton sköter du
-                  på Stripes sida — den är säkrare än att vi hanterar korten själva.
+                  {sub?.uppsagd_at ? (
+                    <>
+                      Prenumerationen är uppsagd och förnyas inte.
+                      {sub?.current_period_end && <> Du har kvar Pro till {new Date(sub.current_period_end).toLocaleDateString("sv-SE")}</>},
+                      sedan övergår kontot till gratisversionen. Din data ligger kvar.
+                      Ångrar du dig kan du återaktivera på Stripes sida innan dess.
+                    </>
+                  ) : (
+                    <>
+                      Du har Kvario Pro{sub?.current_period_end && <> och den förnyas {new Date(sub.current_period_end).toLocaleDateString("sv-SE")}</>}.
+                      Uppsägning, byte mellan månad och år, kortbyte och alla kvitton sköter du
+                      på Stripes sida — den är säkrare än att vi hanterar korten själva.
+                    </>
+                  )}
                 </p>
                 <div className="dataKnappar">
                   <button className="add" onClick={hanteraPrenumeration}>Hantera prenumerationen</button>
@@ -2371,7 +2411,7 @@ export default function KvarioApp() {
                       </span>}
                     </span>
                     <span className="iamt">
-                      {kr(o.belopp_ore / 100)} kr
+                      {exaktKr(o.belopp_ore)} kr
                       <span className="dim"> · {o.interval === "month" ? "månad" : "år"}</span>
                     </span>
                   </div>
@@ -2392,8 +2432,16 @@ export default function KvarioApp() {
                     <p className="dataText">
                       Du har 14 dagars ångerrätt från köpet. Begäran gäller din senaste betalning.
                     </p>
-                    <textarea rows="2" placeholder="Anledning (frivilligt)" value={refundOrsak}
-                              onChange={(e) => setRefundOrsak(e.target.value)}
+                    {/* Höjden sätts av innehållet: nollställs först, så
+                        att fältet krymper igen när text raderas — utan
+                        det växer det bara uppåt och kommer aldrig ner. */}
+                    <textarea className="vaxande" rows="2" placeholder="Anledning (frivilligt)"
+                              value={refundOrsak}
+                              onChange={(e) => {
+                                setRefundOrsak(e.target.value);
+                                e.target.style.height = "auto";
+                                e.target.style.height = `${e.target.scrollHeight}px`;
+                              }}
                               style={{ width: "100%", marginBottom: 10 }} />
                     {refundFel && <p className="authError">{refundFel}</p>}
                     <button className="farlig" onClick={begarAterbetalning} disabled={refundStatus === "sending"}>
@@ -2588,11 +2636,18 @@ export default function KvarioApp() {
 
         </>)}
 
+        {/* Texten sade att jobbskatteavdrag inte ingår. Det gjorde det
+            redan — tax.js räknar det, och provsviten kontrollerar
+            avtrappningen. Att underskatta sin egen noggrannhet är inte
+            försiktigt, det är bara fel: den som stämde av mot
+            Skatteverkets räknesnurra och fick samma siffra undrade
+            vilken av dem som ljög. */}
         <p className="foot">
-          Valutakurser är fasta demokurser. Skattesiffrorna för Sverige gäller inkomstår 2026 och är
-          uppskattningar för enskild firma — grundavdraget är approximerat och jobbskatteavdrag ingår inte.
+          Valutakurser är fasta demokurser. Skattesiffrorna gäller inkomstår 2026 och är
+          uppskattningar för enskild firma: grundavdrag och jobbskatteavdrag räknas med, men
+          båda är approximerade — Skatteverkets tabeller trappar i steg där vi interpolerar.
+          Skillnaden rör sig om några hundralappar på ett år.
           {" · "}<button className="linkbtn" onClick={() => setFlik("konto")}>Villkor, policy och din data</button>
-          {hasAuth && session && <> · Inloggad som {session.user.email}</>}
         </p>
       </div>
 

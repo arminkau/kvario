@@ -407,7 +407,7 @@ export async function signOut() {
 export async function fetchSubscription(userId) {
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("plan, trial_start, current_period_end")
+    .select("plan, trial_start, current_period_end, uppsagd_at")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;

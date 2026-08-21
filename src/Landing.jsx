@@ -48,7 +48,11 @@ export default function Landing({ onStart }) {
   }, [amount, rate]);
 
   const segs = [
-    { label: "Moms", amount: EX.vat, color: "var(--band-1)" },
+    /* Satsen skrivs ut. "Moms" utan procent lämnade besökaren att
+       gissa vilken av 25, 12 och 6 siffran bygger på — och exemplet
+       räknar på 25 %, vilket är det den behöver veta för att kunna
+       jämföra med sin egen fakturering. */
+    { label: `Moms ${Math.round((EX.vat / EX.revenue) * 100)} %`, amount: EX.vat, color: "var(--band-1)" },
     { label: STAPEL.egnaKostnader, amount: EX.costs, color: "var(--band-2)" },
     { label: "Egenavgifter", amount: calc.egen, color: "var(--band-3)" },
     { label: "Inkomstskatt", amount: calc.skatt, color: "var(--band-4)" },

@@ -12,7 +12,22 @@ import React, { useState, useMemo } from "react";
    genväg förbi säkerheten.
    ============================================================ */
 
-const kr = (ore) => (ore / 100).toLocaleString("sv-SE", { maximumFractionDigits: 0 });
+/* Öre visas när de finns, annars inte.
+
+   maximumFractionDigits: 0 gjorde 9,90 kr till "10 kr" och summan
+   108,90 till "109" — i en panel som ska stämma mot bokföringen. Ett
+   avrundat belopp där är inte en förenkling, det är en felaktig siffra.
+
+   Men jämna hundralappar ska inte heller släpa på ",00" i varje rad,
+   så decimalerna kommer bara när beloppet faktiskt har öre. */
+const kr = (ore) => {
+  const belopp = (ore || 0) / 100;
+  const harOre = Math.round(ore || 0) % 100 !== 0;
+  return belopp.toLocaleString("sv-SE", {
+    minimumFractionDigits: harOre ? 2 : 0,
+    maximumFractionDigits: harOre ? 2 : 0,
+  });
+};
 const datum = (d) => (d ? new Date(d).toLocaleDateString("sv-SE") : "—");
 
 const FLIKAR = [
@@ -192,7 +207,7 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
         <div className="adminPanel">
           <input className="adminSok" placeholder="Sök på e-post…" value={sok} onChange={(e) => setSok(e.target.value)} />
           <table className="rTabell">
-            <thead><tr><th>E-post</th><th>Plan</th><th>Provperiod</th><th>Förnyas</th><th className="h">Betalt totalt</th></tr></thead>
+            <thead><tr><th>E-post</th><th>Plan</th><th>Provperiod</th><th>Period</th><th className="h">Betalt totalt</th></tr></thead>
             <tbody>
               {filtrerade(kunder, ["epost"]).map((k) => {
                 const kOrdrar = ordrar.filter((o) => o.epost === k.epost);
@@ -200,9 +215,15 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
                 return (
                   <tr key={k.user_id}>
                     <td>{k.epost}</td>
-                    <td><span className={`plantag ${k.plan}`}>{k.plan === "pro" ? "Pro" : "Gratis"}</span></td>
+                    <td>
+                      <span className={`plantag ${k.plan}`}>{k.plan === "pro" ? "Pro" : "Gratis"}</span>
+                      {k.uppsagd_at && <span className="regelTag">Uppsagd</span>}
+                    </td>
                     <td>{datum(k.trial_start)}</td>
-                    <td>{datum(k.current_period_end)}</td>
+                    {/* Kolumnen hette "Förnyas" och visade periodslutet
+                        även för en uppsagd prenumeration — som alltså
+                        inte förnyas alls. Samma datum, motsatt betydelse. */}
+                    <td>{k.uppsagd_at ? <>Slutar {datum(k.current_period_end)}</> : datum(k.current_period_end)}</td>
                     <td className="h">{kr(summa)} kr</td>
                   </tr>
                 );

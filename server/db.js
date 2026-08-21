@@ -45,9 +45,18 @@ export const dbSaknar = [
 
 const MOMSSATS = 0.25;
 
+/* Samma villkor som i breven, av samma källa. brev.js hade redan den
+   här kontrollen men db.js saknade den, så kvittot sa "ingen moms
+   debiterad" medan ordern i databasen fick moms_ore ifyllt. Det är
+   inte en kosmetisk avvikelse utan ett bokföringsfel: momsen fanns
+   aldrig, betalades aldrig, och skulle inte redovisas. */
+const ARMOMSREGISTRERAD = Boolean(process.env.FORETAG_MOMSNR?.trim());
+
 /* Momsen räknas baklänges ur bruttobeloppet, eftersom priset
-   anges inklusive moms mot konsument. */
+   anges inklusive moms mot konsument. Utan momsregistrering finns
+   ingen moms i beloppet alls — hela summan är netto. */
 export function momsdelar(bruttoOre, sats = MOMSSATS) {
+  if (!ARMOMSREGISTRERAD) return { netto: bruttoOre, moms: 0 };
   const netto = Math.round(bruttoOre / (1 + sats));
   return { netto, moms: bruttoOre - netto };
 }

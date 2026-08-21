@@ -281,9 +281,42 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     case "customer.subscription.updated": {
       if (!userId) break;
       const active = ["active", "trialing"].includes(sub.status);
+
+      /* Uppsägningen syntes ingenstans förut.
+
+         Stripe raderar inte prenumerationen när kunden säger upp den —
+         den fortsätter vara active med cancel_at_period_end satt, och
+         customer.subscription.deleted kommer först när perioden löper
+         ut, alltså upp till en månad senare.
+
+         Servern lyssnade bara på deleted. Alltså: inget brev till
+         kunden, inget till admin, ingenting i appen och ingenting i
+         adminpanelen — trots att kunden just sagt upp. Det såg ut som
+         att uppsägningen inte gick igenom. */
+      const uppsagd = Boolean(sub.cancel_at_period_end);
+      const kundrad = await hamtaKund(userId);
+      const varUppsagd = Boolean(kundrad?.uppsagd_at);
+
       await sattPlan(userId, active ? "pro" : "free", {
         current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+        /* Tidpunkten behålls om den redan finns, så att en senare
+           uppdatering av samma prenumeration inte flyttar fram den. */
+        uppsagd_at: uppsagd ? (kundrad?.uppsagd_at || new Date().toISOString()) : null,
       });
+
+      // Brev bara vid övergången, inte vid varje uppdatering Stripe skickar.
+      if (uppsagd && !varUppsagd) {
+        const slutar = new Date(sub.current_period_end * 1000);
+        try {
+          const kund = sub.customer ? await stripe.customers.retrieve(sub.customer) : null;
+          if (kund?.email) {
+            await skickaUppsagd(kund.email, { slutar });
+            await skickaAdminUppsagd({ epost: kund.email, slutar });
+          }
+        } catch (e) {
+          console.error("Kunde inte skicka uppsägningsbrev:", e?.message || e);
+        }
+      }
       break;
     }
     case "customer.subscription.deleted": {
@@ -472,6 +505,10 @@ app.post("/portal", express.json(), async (req, res) => {
   const session = await stripe.billingPortal.sessions.create({
     customer: kund.stripe_customer_id,
     return_url: process.env.APP_URL,
+    /* Utan locale gissar Stripe utifrån webbläsaren, och kunden kunde
+       hamna på en engelsk sida mitt i en svensk app. Kassan sattes till
+       "sv" från början; portalen glömdes bort. */
+    locale: "sv",
   });
   res.json({ url: session.url });
 });

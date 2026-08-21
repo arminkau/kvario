@@ -156,6 +156,16 @@
 .alert p{margin:0;font-size:12.5px;color:var(--slate);line-height:1.55}
 .alert strong{color:var(--ink)}
 .bang{font-family:var(--siffror);color:var(--warn);font-weight:600}
+/* Inloggad adress i topraden. Dämpad och avkortad — den ska gå att
+   kontrollera med en blick, inte konkurrera med rubriken. */
+.inloggadSom{font-size:11.5px;color:var(--mist);max-width:190px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:560px){.inloggadSom{max-width:130px}}
+
+/* Anledningsfältet vid återbetalning växer med texten i stället för att
+   ha ett handtag man drar i. Ett fält man kan krympa till en rad är
+   inget val någon vill göra — det döljer bara det man skrivit. */
+textarea.vaxande{resize:none;overflow:hidden;min-height:2.6em}
 /* Kvittot efter en betalning. Mässing i stället för en ny grön färg:
    den signalerar redan "klart" på andra ställen, som i det ikryssade
    villkorssteget, och en färg till hade bara gjort paletten grumligare. */
