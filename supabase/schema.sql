@@ -292,6 +292,15 @@ create index if not exists aterbet_status_idx on public.aterbetalningar (status,
 -- som klienten aldrig får läsa direkt. Den här funktionen gör det
 -- enda undantaget: en admin får se e-post ihopkopplat med plan och
 -- provperiod, aldrig lösenord eller annat från auth.users.
+-- Droppas först. "create or replace" får inte ändra returtypen, och den
+-- här funktionen returnerar en tabell som växer när kundvyn behöver en
+-- kolumn till — senast uppsagd_at. Utan droppen stannar hela filen på
+-- 42P13 och resten körs aldrig.
+--
+-- Ofarligt att droppa: den anropas bara utifrån via RPC. Ingen trigger
+-- och ingen policy hänger på den, och standardbehörigheten följer med
+-- när den skapas på nytt.
+drop function if exists public.admin_kunder();
 create or replace function public.admin_kunder()
 returns table (
   user_id uuid,
