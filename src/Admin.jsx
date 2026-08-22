@@ -142,11 +142,21 @@ export default function Admin({ data, epost, onAterbetala, onUtskick, onStang })
      Räknar alla fyra grupperna. Knappen räknade förut bara tre:
      "utgangen" föll igenom och visade provperiodsantalet i stället,
      alltså fel siffra i just den grupp man är mest försiktig med. */
-  const antalMottagare =
-    utskick.mottagare === "pro" ? stat.pro
-    : utskick.mottagare === "trial" ? stat.trial
-    : utskick.mottagare === "utgangen" ? siffror.utgangna.length
-    : kunder.length;
+  const antalMottagare = useMemo(() => {
+    const nu = Date.now();
+    const provAktiv = (k) => k.trial_start && (nu - new Date(k.trial_start)) / 86400000 < 14;
+    return kunder.filter((k) => {
+      /* Avregistrerade räknas inte. Servern sorterade redan bort dem
+         vid sändning, så inga brev gick fel — men knappen sade "8
+         mottagare" när det bara var 6, och den siffran är hela
+         underlaget för beslutet att trycka. */
+      if (k.utskick_av) return false;
+      if (utskick.mottagare === "pro") return k.plan === "pro";
+      if (utskick.mottagare === "trial") return k.plan !== "pro" && provAktiv(k);
+      if (utskick.mottagare === "utgangen") return k.plan !== "pro" && k.trial_start && !provAktiv(k);
+      return true;
+    }).length;
+  }, [kunder, utskick.mottagare]);
 
   const exportera = () => {
     const rader = [["Ordernummer", "Namn", "E-post", "Datum", "Brutto", "Moms", "Aterbetalt", "Status"]];

@@ -309,11 +309,16 @@ returns table (
   trial_start timestamptz,
   current_period_end timestamptz,
   stripe_customer_id text,
-  uppsagd_at timestamptz
+  uppsagd_at timestamptz,
+  -- Utan den här räknade utskicksfliken avregistrerade som mottagare.
+  -- Servern sorterade bort dem vid sändning, så inga brev gick fel —
+  -- men siffran på knappen ljög, och det är siffran man litar på när
+  -- man trycker.
+  utskick_av timestamptz
 )
 language sql stable security definer set search_path = public as $$
   select s.user_id, u.email, s.plan, s.trial_start, s.current_period_end,
-         s.stripe_customer_id, s.uppsagd_at
+         s.stripe_customer_id, s.uppsagd_at, s.utskick_av
   from public.subscriptions s
   join auth.users u on u.id = s.user_id
   where public.ar_admin();

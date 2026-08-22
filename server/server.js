@@ -323,6 +323,22 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
   }
 });
 
+/* Varje hanterad händelse loggas, inte bara de som skickar brev.
+
+   Utan det här gick det inte att svara på "vad ändrade planen?" — en
+   lyckad subscription.updated skrev till databasen och lämnade inget
+   spår alls. Två gånger har jag stått med en ändrad rad och en tyst
+   logg, och gissat. Det är en rad kod för att slippa gissa. */
+function loggaHandelse(event, utfall) {
+  const o = event.data?.object || {};
+  const detaljer = [
+    o.status && `status=${o.status}`,
+    o.cancel_at_period_end !== undefined && `uppsagd=${o.cancel_at_period_end}`,
+    o.metadata?.userId && `user=${String(o.metadata.userId).slice(0, 8)}`,
+  ].filter(Boolean).join(" ");
+  console.log(`Stripe ${event.type}: ${utfall}${detaljer ? ` — ${detaljer}` : ""}`);
+}
+
 async function hanteraStripeHandelse(event) {
   const sub = event.data.object;
   const userId = sub.metadata?.userId;
@@ -347,20 +363,48 @@ async function hanteraStripeHandelse(event) {
       const uppsagd = Boolean(sub.cancel_at_period_end);
       const kundrad = await hamtaKund(userId);
       const varUppsagd = Boolean(kundrad?.uppsagd_at);
-      const slutar = periodSlutet(sub);
+      const slutar = periodSlutet(sub) || (kundrad?.current_period_end ? new Date(kundrad.current_period_end) : null);
 
-      await sattPlan(userId, active ? "pro" : "free", {
+      /* Betald period gäller, oavsett hur uppsägningen gjordes.
+
+         Förut satte status ensam planen: allt utom active och trialing
+         gav free. En uppsägning som Stripe utför direkt i stället för
+         vid periodens slut nollade därför Pro på en kund som betalat
+         till den 18 september — och kontot föll tillbaka på
+         provperioden, som om köpet aldrig skett.
+
+         Kunden har betalat för tiden. Att ta bort den för att
+         uppsägningen registrerades på ett annat sätt är fel, och det
+         är oss den skulle gynna. */
+      const kvarAvPerioden = slutar && slutar.getTime() > Date.now();
+      const skaHaPro = active || kvarAvPerioden;
+
+      /* Uppsagd är inte samma sak som cancel_at_period_end.
+
+         Det fältet är bara sant när uppsägningen sker vid periodens
+         slut. Avslutas prenumerationen direkt är det falskt, medan
+         status blir canceled — och den kombinationen nollade flaggan
+         på en kund som just sagt upp.
+
+         Flaggan tas bort bara vid en riktig återaktivering: aktiv
+         status och ingen väntande uppsägning. */
+      const arAvslutad = uppsagd || sub.status === "canceled";
+      const uppsagdTid = arAvslutad
+        ? (kundrad?.uppsagd_at || new Date().toISOString())
+        : null;
+
+      await sattPlan(userId, skaHaPro ? "pro" : "free", {
         /* Utelämnas helt om Stripe inte skickade med något datum, i
            stället för att skriva null. Ett null hade raderat perioden vi
            redan fått från invoice.paid. */
         ...(slutar ? { current_period_end: slutar.toISOString() } : {}),
-        /* Tidpunkten behålls om den redan finns, så att en senare
-           uppdatering av samma prenumeration inte flyttar fram den. */
-        uppsagd_at: uppsagd ? (kundrad?.uppsagd_at || new Date().toISOString()) : null,
+        uppsagd_at: uppsagdTid,
       });
 
+      loggaHandelse(event, `plan=${skaHaPro ? "pro" : "free"} uppsagd_at=${uppsagdTid ? "satt" : "null"} period=${slutar ? slutar.toISOString().slice(0, 10) : "-"}`);
+
       // Brev bara vid övergången, inte vid varje uppdatering Stripe skickar.
-      if (uppsagd && !varUppsagd) {
+      if (arAvslutad && !varUppsagd) {
         try {
           const kund = sub.customer ? await stripe.customers.retrieve(sub.customer) : null;
           if (kund?.email) {
@@ -820,8 +864,21 @@ function signaturStammer(userId, signatur) {
   return vantad.length === fick.length && timingSafeEqual(vantad, fick);
 }
 
+/* Serverns egen adress, inte appens.
+
+   Länken byggdes mot APP_URL, alltså kvario.se — men rutten ligger
+   här på servern. kvario.se är en ensidesapp: okända sökvägar serverar
+   index.html, så mottagaren hamnade på landningssidan och blev aldrig
+   avregistrerad. Inget felmeddelande, ingen aning om att det inte
+   fungerat.
+
+   FLY_APP_NAME sätts av plattformen, så adressen stämmer utan att
+   någon behöver komma ihåg att sätta den. */
+const SERVER_URL = process.env.SERVER_URL
+  || (process.env.FLY_APP_NAME ? `https://${process.env.FLY_APP_NAME}.fly.dev` : `http://localhost:${process.env.PORT || 3000}`);
+
 const avregistreraUrlFor = (userId) =>
-  `${process.env.APP_URL}/avregistrera?u=${userId}&s=${utskickSignatur(userId)}`;
+  `${SERVER_URL}/avregistrera?u=${userId}&s=${utskickSignatur(userId)}`;
 
 /* Svarar med en sida och inte med JSON — det här är en länk någon
    klickar på i sitt e-postprogram, inte ett API-anrop. */
