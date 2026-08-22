@@ -211,6 +211,13 @@ export default function KvarioApp() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [state, setState] = useState(DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
+  /* Sätts när läsningen av sparad data misslyckats. Skilt från loaded
+     med flit: loaded betyder "vi vet vad som finns", laddfel betyder
+     "vi vet att vi inte vet". Det är skillnaden mellan ett tomt konto
+     och ett konto vi inte kunde nå — och att blanda ihop dem kostade
+     en kund all sin data. */
+  const [laddfel, setLaddfel] = useState(null);
+  const [laddOm, setLaddOm] = useState(0);
   const [saveState, setSaveState] = useState("idle");
   const [showPaywall, setShowPaywall] = useState(false);
   const [billing, setBilling] = useState("year");
@@ -389,20 +396,48 @@ export default function KvarioApp() {
   const userId = session?.user?.id || null;
   const store = useMemo(() => makeStorage(userId), [userId]);
 
-  /* ---------- Ladda data och prenumeration ---------- */
+  /* ---------- Ladda data och prenumeration ----------
+
+     KRITISKT: loaded får bara sättas när läsningen faktiskt lyckats.
+
+     Förut fångades ett fel här med kommentaren "inget sparat än", som
+     om det enda skälet till ett kast vore ett tomt konto. Det stämmer
+     inte: maybeSingle() ger data null utan fel när raden är tom. Ett
+     kast betyder att något gick snett — nätet, en utgången token, en
+     timeout.
+
+     Följden var att en sekunds strul raderade allt kunden hade. Appen
+     visade onboardingen som om kontot vore nytt, och 600 ms senare
+     skrev spar-effekten tomt tillstånd över molnraden. Det hände på
+     riktigt, 22 augusti 12:35: en faktura och en kostnad försvann.
+
+     Nu stannar appen i stället. loaded förblir false, spar-effekten
+     rör sig inte, och användaren får veta att något är fel i stället
+     för att mötas av ett tomt konto som ser ut att vara sanningen. */
   useEffect(() => {
     if (!authReady) return;
     if (hasAuth && !userId) { setLoaded(true); return; }
     let alive = true;
     (async () => {
       setLoaded(false);
+      setLaddfel(null);
+
+      let lastes = false;
       try {
         const r = await store.get(STORAGE_KEY);
-        if (alive && r?.value) {
+        if (!alive) return;
+        if (r?.value) {
           setState({ ...DEFAULT_STATE, ...JSON.parse(r.value) });
           senastSkrivet.current = r.value;
         }
-      } catch { /* inget sparat än */ }
+        // Ingen rad är ett giltigt svar: ett konto som aldrig sparat.
+        lastes = true;
+      } catch (fel) {
+        console.error("Kunde inte läsa sparad data:", fel?.message || fel);
+        if (alive) setLaddfel(fel?.message || "Okänt fel");
+      }
+      if (!alive || !lastes) return;
+
       if (hasAuth && userId) {
         try {
           const s = await fetchSubscription(userId);
@@ -416,7 +451,7 @@ export default function KvarioApp() {
       if (alive) setLoaded(true);
     })();
     return () => { alive = false; };
-  }, [authReady, userId, store]);
+  }, [authReady, userId, store, laddOm]);
 
   /* ---------- Efter betalningen ----------
 
@@ -1222,6 +1257,33 @@ export default function KvarioApp() {
       </div>
     );
   }
+
+  /* Går datan inte att läsa stannar appen här. Att släppa in någon i
+     ett tomt gränssnitt vore att påstå att kontot är tomt — och det
+     enda som händer sedan är att påståendet skrivs till databasen. */
+  if (laddfel) return (
+    <div className="kvar">
+      <style>{CSS}</style>
+      <div className="onboard">
+        <div className="obCard">
+          <div className="brand"><h1>{MARKE}</h1></div>
+          <h2 className="obTitle">Vi når inte din data just nu</h2>
+          <p className="obLead">
+            Din information ligger kvar — vi kunde bara inte hämta den den här
+            gången. Ofta räcker det att försöka igen om någon sekund.
+          </p>
+          <p className="obLead" style={{ marginTop: -6 }}>
+            Appen sparar ingenting förrän vi vet att vi har rätt uppgifter, så
+            ingenting skrivs över under tiden.
+          </p>
+          <button className="add wide" onClick={() => setLaddOm((n) => n + 1)}>
+            Försök igen
+          </button>
+          <p className="authNote">Tekniskt: {String(laddfel).slice(0, 140)}</p>
+        </div>
+      </div>
+    </div>
+  );
 
   if (!loaded) return <div className="kvar"><style>{CSS}</style><div className="wrap"><p className="empty">Hämtar din data…</p></div></div>;
 
