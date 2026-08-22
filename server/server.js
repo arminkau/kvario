@@ -296,6 +296,34 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
     return res.status(400).send(`Signaturen stämmer inte: ${err.message}`);
   }
 
+  /* ---------- Kvittera först, arbeta sedan ----------
+
+     Stripe väntar bara några sekunder på ett svar. Handlaren nedan gör
+     databasfrågor, hämtar kunden från Stripe och skickar två brev över
+     SMTP innan den var klar — och en SMTP-anslutning till Strato tar
+     sekunder i sig. Svaret kom alltså för sent.
+
+     Resultatet blev 32 timeouts sedan 18 augusti, och ett brev från
+     Stripe om att endpointen stängs av 27 augusti. Arbetet blev ändå
+     gjort — servern räknade färdigt efter att Stripe gett upp — så
+     ingenting såg trasigt ut från appens sida. Bara långsamt, och bara
+     synligt hos Stripe.
+
+     Priset för att kvittera direkt: misslyckas något efteråt skickar
+     Stripe inte om händelsen, eftersom vi redan sagt att den kom fram.
+     Därför loggas fel högljutt här. Det är avvägningen Stripe själva
+     rekommenderar, och den rätta: ett tyst omförsök som ändå hinner
+     göra timeout hjälper ingen. */
+  res.json({ received: true });
+
+  try {
+    await hanteraStripeHandelse(event);
+  } catch (fel) {
+    console.error(`Webhooken ${event.type} misslyckades efter kvittens:`, fel?.stack || fel);
+  }
+});
+
+async function hanteraStripeHandelse(event) {
   const sub = event.data.object;
   const userId = sub.metadata?.userId;
 
@@ -510,9 +538,7 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       break;
     }
   }
-
-  res.json({ received: true });
-});
+}
 
 
 /* ---------- 3. Vilken plan har jag? ----------
