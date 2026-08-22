@@ -159,6 +159,28 @@ async function arAdminSession(req) {
   return roll?.admin === true;
 }
 
+/* ---------- Periodens slut ur en prenumeration ----------
+
+   Stripe flyttade current_period_end från prenumerationen till dess
+   rader i API-version 2025-03-31. På ett konto som kör den versionen
+   är fältet borta där koden letade, och new Date(undefined * 1000)
+   ger Invalid Date.
+
+   Det kraschade hela webhook-hanteraren på .toISOString() — innan
+   planen hann sparas. Uppsägningen registrerades därför aldrig, och
+   felet syntes bara som "RangeError: Invalid time value" i loggen
+   eftersom unhandledRejection fångade det och lät servern gå vidare.
+
+   Läser båda formerna. Saknas datumet i båda returneras null, och den
+   som frågar får avgöra vad som ska hända — aldrig ett ogiltigt Date
+   som går sönder först några rader senare. */
+function periodSlutet(sub) {
+  const sekunder = sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? null;
+  if (!Number.isFinite(sekunder)) return null;
+  const d = new Date(sekunder * 1000);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 async function kravAdmin(req, res) {
   /* Båda måste finnas innan de jämförs.
 
@@ -297,9 +319,13 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       const uppsagd = Boolean(sub.cancel_at_period_end);
       const kundrad = await hamtaKund(userId);
       const varUppsagd = Boolean(kundrad?.uppsagd_at);
+      const slutar = periodSlutet(sub);
 
       await sattPlan(userId, active ? "pro" : "free", {
-        current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+        /* Utelämnas helt om Stripe inte skickade med något datum, i
+           stället för att skriva null. Ett null hade raderat perioden vi
+           redan fått från invoice.paid. */
+        ...(slutar ? { current_period_end: slutar.toISOString() } : {}),
         /* Tidpunkten behålls om den redan finns, så att en senare
            uppdatering av samma prenumeration inte flyttar fram den. */
         uppsagd_at: uppsagd ? (kundrad?.uppsagd_at || new Date().toISOString()) : null,
@@ -307,7 +333,6 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
 
       // Brev bara vid övergången, inte vid varje uppdatering Stripe skickar.
       if (uppsagd && !varUppsagd) {
-        const slutar = new Date(sub.current_period_end * 1000);
         try {
           const kund = sub.customer ? await stripe.customers.retrieve(sub.customer) : null;
           if (kund?.email) {
@@ -330,7 +355,8 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
       try {
         const kund = sub.customer ? await stripe.customers.retrieve(sub.customer) : null;
         if (kund?.email) {
-          const slutar = new Date((sub.current_period_end || sub.canceled_at || Date.now() / 1000) * 1000);
+          const slutar = periodSlutet(sub)
+            || (sub.canceled_at ? new Date(sub.canceled_at * 1000) : new Date());
           await skickaUppsagd(kund.email, { slutar });
           await skickaAdminUppsagd({ epost: kund.email, slutar });
         }
@@ -375,7 +401,11 @@ app.post("/stripe-webhook", express.raw({ type: "application/json" }), async (re
           : null;
         const interval = sub?.items?.data?.[0]?.price?.recurring?.interval || "year";
         const betaldAt = new Date((faktura.status_transitions?.paid_at || faktura.created) * 1000);
-        const periodSlut = sub?.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+        /* Samma flytt som ovan gäller här. Den här raden gav null i
+           stället för att krascha, så orderbekräftelsen skickades ändå
+           — men utan förnyelsedatum, och prenumerationsraden fick
+           ingen period att räkna nåd på. */
+        const periodSlut = periodSlutet(sub);
 
         const { order, nyskapad } = await skapaOrder({
           userId: uid,
