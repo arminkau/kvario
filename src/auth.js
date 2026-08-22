@@ -167,7 +167,7 @@ export async function bytEpost(nyEpost) {
 export async function fetchOrdrar(userId) {
   const { data, error } = await supabase
     .from("orders")
-    .select("ordernummer, betald_at, belopp_ore, moms_ore, valuta, interval, status, aterbetalt_ore")
+    .select("ordernummer, betald_at, belopp_ore, moms_ore, valuta, interval, status, aterbetalt_ore, period_slut")
     .eq("user_id", userId)
     .order("betald_at", { ascending: false });
   if (error) throw error;

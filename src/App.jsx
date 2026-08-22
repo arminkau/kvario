@@ -939,9 +939,13 @@ export default function KvarioApp() {
       if (orderFel) throw orderFel;
       if (!order) { setRefundFel("Hittar ingen betalning på ditt konto."); setRefundStatus("idle"); return; }
 
-      const inom14Dagar = order.betald_at
-        && (Date.now() - new Date(order.betald_at).getTime()) / 86400000 <= 14;
-      const automatisk = inom14Dagar && !order.angerratt_samtycke;
+      /* Samma frist som texten ovanför knappen visar. Räknades den om
+         här från ordern skulle rutan kunna säga "9 dagar kvar" medan
+         begäran ändå hamnade som manuell — eller tvärtom, att någon
+         fick automatiskt godkänt efter att texten sagt att rätten gått
+         ut. Ett löfte och ett utfall som inte hänger ihop är värre än
+         ett strikt besked. */
+      const automatisk = angerfristKvar > 0 && !order.angerratt_samtycke;
 
       const { error } = await supabase.from("aterbetalningar").insert({
         order_id: order.id,
@@ -1014,9 +1018,41 @@ export default function KvarioApp() {
      tretton dagar kvar, inte 12,6. Ett avrundat nedåt hade tagit en
      dag av kunden i en text om just deras rättigheter. */
   const angerfristKvar = useMemo(() => {
-    const senaste = ordrar[0];
-    if (!senaste?.betald_at) return null;
-    const gatt = (Date.now() - new Date(senaste.betald_at).getTime()) / 86400000;
+    /* Räknat från när avtalet ingicks, inte från senaste dragningen.
+
+       Ångerrätten hör till avtalet. En automatisk förnyelse är
+       fullgörande av ett avtal som redan finns, inte ett nytt — så
+       fristen löper ut fjorton dagar efter registreringen, en gång.
+
+       Mätte man från senaste betalningen fick en månadskund fjorton
+       nya dagar var trettionde dag, alltså en rullande återköpsrätt
+       vi inte är skyldiga att ge.
+
+       Undantaget är den som sagt upp och tecknat på nytt efter att
+       perioden löpt ut. Då är det ett nytt avtal, och en ny frist —
+       att neka den vore att ta bort en rättighet kunden faktiskt har.
+       Kedjan bryts därför där en betalning kommer efter att
+       föregående period redan tagit slut. */
+    if (!ordrar.length) return null;
+
+    const iTidsordning = [...ordrar]
+      .filter((o) => o.betald_at)
+      .sort((a, b) => new Date(a.betald_at) - new Date(b.betald_at));
+    if (!iTidsordning.length) return null;
+
+    let borjan = iTidsordning[0];
+    for (let i = 1; i < iTidsordning.length; i++) {
+      const forra = iTidsordning[i - 1];
+      const denna = iTidsordning[i];
+      /* Saknas period_slut på den förra går det inte att veta om det
+         var ett glapp. Då antas kedjan hålla — det ger kunden fristen
+         från det tidigare avtalet, vilket är det försiktiga valet. */
+      if (forra.period_slut && new Date(denna.betald_at) > new Date(forra.period_slut)) {
+        borjan = denna;
+      }
+    }
+
+    const gatt = (Date.now() - new Date(borjan.betald_at).getTime()) / 86400000;
     return Math.max(0, Math.ceil(14 - gatt));
   }, [ordrar]);
   const [nyEpost, setNyEpost] = useState("");
